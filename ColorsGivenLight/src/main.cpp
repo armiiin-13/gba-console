@@ -1,30 +1,32 @@
 #include <Arduino.h>
 
-// pin declaration
-int button = 13;
-int ledRed = 6;
-int ledGreen = 5;
-int ledBlue = 3;
-int ldr = A0;
+// PINs declaration
+#define LIGHT A0
+#define RED 6
+#define GREEN 5
+#define BLUE 3
+#define BUTTON 13
 
 int valueRed = 0;
-int valueGreen = 123;
+int valueGreen = 0;
 int valueBlue = 0;
 
 int umbral = 600;
 
-// functions declaration
+// Functions declaration
 void setUpLed();
 void upToRed();
 void upToBlue();
 void printRGBValues();
 
 void setup() {
-  pinMode(ledRed,OUTPUT);
-  pinMode(ledGreen,OUTPUT);
-  pinMode(ledBlue,OUTPUT);
-  pinMode(button, INPUT);
-  pinMode(ldr,INPUT);
+  pinMode(RED,OUTPUT);
+  pinMode(GREEN,OUTPUT);
+  pinMode(BLUE,OUTPUT);
+
+  pinMode(BUTTON, INPUT_PULLUP);
+
+  pinMode(LIGHT,INPUT);
 
   setUpLed();
 
@@ -32,17 +34,18 @@ void setup() {
 }
 
 void loop() {
-  int ldrValue = analogRead(ldr);
+  // Lectura LDR (fotoresistor)
+  int ldrValue = analogRead(LIGHT);
   Serial.print("LDR Value = ");
   Serial.println(ldrValue);
   delay(500);
-  int buttonValue = digitalRead(button);
-  if (buttonValue == HIGH){ // button pressed
+
+  if (digitalRead(BUTTON) == LOW){ // button pressed
     if (ldrValue < umbral){ // tendency to blue
       for (int i = 0; i < 5; i++){
         upToBlue();
         printRGBValues();
-        delay(500);
+        delay(200);
       }
     } else { // tendency to red
       for (int i = 0; i < 5; i++){
@@ -55,30 +58,30 @@ void loop() {
 }
 
 void setUpLed(){
-  analogWrite(ledRed, valueRed);
-  analogWrite(ledGreen, valueGreen);
-  analogWrite(ledBlue, valueBlue);
+  analogWrite(RED, valueRed);
+  analogWrite(GREEN, valueGreen);
+  analogWrite(BLUE, valueBlue);
 }
 
 void upToRed(){
   if (valueRed < 255){
     valueRed += 51;
-    analogWrite(ledRed, valueRed);
+    analogWrite(RED, valueRed);
   }
   if (valueBlue > 0){
     valueBlue -= 51;
-    analogWrite(ledBlue, valueBlue);
+    analogWrite(BLUE, valueBlue);
   }
 }
 
 void upToBlue(){
   if (valueBlue < 255){
     valueBlue += 51;
-    analogWrite(ledBlue, valueBlue);
+    analogWrite(BLUE, valueBlue);
   }
   if (valueRed > 0){
     valueRed -= 51;
-    analogWrite(valueRed, valueRed);
+    analogWrite(RED, valueRed);
   }
 }
 

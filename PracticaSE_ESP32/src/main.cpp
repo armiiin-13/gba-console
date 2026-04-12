@@ -1,7 +1,7 @@
+#include <Arduino.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_ST7735.h>
-#include <Arduino.h>
 #include <MFRC522.h>
 #include <SPI.h>
 
@@ -12,28 +12,43 @@
 #include "MenuScreen.h"
 #include "SettingsScreen.h"
 #include "SoundManager.h"
+#include "ColorGame.h"
 
 // --- Pines ---
 #define BUZZER_PIN 4
-#define TFT_CS 7
-#define TFT_DC 5
-#define TFT_RST 9
-#define TFT_SDA_RF_MOSI 11
-#define TFT_SCK_RF_SCK 12
+
+#define POWER_BUTTON 15
+
+#define BUTTON_UP 1
+#define BUTTON_DOWN 2
+#define BUTTON_RIGHT 4
+#define BUTTON_LEFT 6
+#define BUTTON_A 20
+#define BUTTON_B 41
+
+#define PIN_CART 35 // interruptor que simula cartucho insertado
+
+#define TFT_CS 9
+#define TFT_RST 16
+#define TFT_DC 8
 
 #define RF_CS 10
-#define RF_RST 46
-#define RF_MISO 13
+#define RF_RST 11
+
+#define SPI_SCK 18
+#define SPI_MISO 3
+#define SPI_MOSI 17
 
 #define LED_PIN 48
 
 // Inicializacion botones
-Button btnUp(16);
-Button btnDown(17);
-Button btnLeft(18);
-Button btnRight(15);
-Button btnA(8);
-Button btnB(3);
+Button btnPower(POWER_BUTTON);
+Button btnUp(BUTTON_UP);
+Button btnDown(BUTTON_DOWN);
+Button btnLeft(BUTTON_LEFT);
+Button btnRight(BUTTON_RIGHT);
+Button btnA(BUTTON_A);
+Button btnB(BUTTON_B);
 
 // --- Components ---
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
@@ -45,9 +60,10 @@ SoundManager sound(BUZZER_PIN);
 GameCard gameList[] = {{"62 09 20 07", "Snake"}, {"51 F7 1F 07", "Tetris"}};
 
 // --- Dependencias---
-ConsoleState currentState = mainScreen;
+ConsoleState consoleState = STATE_OFF;
 Screen* currentScreen = nullptr;
 GameCard* activeGameCard = nullptr;
+IGame *activeGame = nullptr;
 GlobalConfig consoleConfig;
 
 const int numGames = sizeof(gameList) / sizeof(gameList[0]);
@@ -64,6 +80,30 @@ Screen* gameFactory(String uid) {
 }
 */
 
+// =========================
+// FUNCIONES SPI
+// =========================
+void selectScreen()
+{
+  digitalWrite(RF_CS, HIGH);
+  digitalWrite(TFT_CS, LOW);
+}
+
+void deselectScreen()
+{
+  digitalWrite(TFT_CS, HIGH);
+}
+
+void selectRFID()
+{
+  digitalWrite(TFT_CS, HIGH);
+  digitalWrite(RF_CS, LOW);
+}
+
+void deselectRFID() {
+  digitalWrite(RF_CS, HIGH);
+}
+
 void setScreen(Screen* nextScreen) {
   // Salimos y liberamos la pantalla en la que estamos
   if (currentScreen != nullptr) {
@@ -74,6 +114,217 @@ void setScreen(Screen* nextScreen) {
   // Cambiamos la pantalla en la que estamos y la cargamos
   currentScreen = nextScreen;
   if (currentScreen != nullptr) currentScreen->enter();
+}
+
+// =========================
+// ISR POWER
+// =========================
+volatile bool powerIRQ = false;
+bool systemOn = false;
+
+void IRAM_ATTR onPowerButton() {
+  powerIRQ = true;
+}
+
+// =========================
+// UI SISTEMA
+// =========================
+void drawOffScreen() {
+  selectScreen();
+  tft.fillScreen(ST77XX_BLACK);
+}
+
+void drawWaitingRFIDScreen() {
+  selectScreen();
+  tft.fillScreen(ST77XX_BLACK);
+
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_CYAN);
+  tft.setCursor(12, 30);
+  tft.println("Cartucho detectado");
+
+  tft.setCursor(16, 50);
+  tft.println("Acerca RFID");
+}
+
+void drawLoadingScreen() {
+  selectScreen();
+  tft.fillScreen(ST77XX_BLACK);
+
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_GREEN);
+  tft.setCursor(18, 50);
+  tft.println("Cargando juego...");
+}
+
+// =========================
+// LECTURA DE INPUT
+// =========================
+InputState input;
+
+void readInput() {
+  input.previousA = input.currentA;
+  input.previousB = input.currentB;
+  input.previousC = input.currentC;
+  input.previousD = input.currentD;
+
+  input.currentA = btnUp.isPressed();
+  input.currentB = btnDown.isPressed();
+  input.currentC = btnLeft.isPressed();
+  input.currentD = btnRight.isPressed();
+}
+
+bool cartInserted = false;
+bool lastCartInserted = false;
+
+// =========================
+// LECTURA DE CARTUCHO
+// =========================
+void readCartridgeSwitch() {
+  lastCartInserted = cartInserted;
+  cartInserted = (digitalRead(PIN_CART) == LOW);
+}
+
+// =========================
+// POWER
+// =========================
+void processPowerButton()
+{
+  static uint32_t lastPress = 0;
+
+  if (!powerIRQ)
+    return;
+
+  powerIRQ = false;
+  uint32_t now = millis();
+
+  if (now - lastPress <= 200)
+    return;
+  lastPress = now;
+
+  systemOn = !systemOn;
+
+  if (systemOn)
+  {
+    Serial.println("Sistema ON");
+    if (currentScreen)
+    {
+      setScreen(nullptr);
+    }
+    consoleState = STATE_MENU;
+  }
+  else
+  {
+    Serial.println("Sistema OFF");
+
+    if (activeGame)
+    {
+      activeGame->exit();
+      activeGameCard = nullptr;
+      activeGame = nullptr;
+    }
+
+    if (currentScreen)
+    {
+      setScreen(nullptr);
+    }
+
+    consoleState = STATE_OFF;
+    drawOffScreen();
+  }
+}
+
+// =========================
+// CAMBIO DE CARTUCHO
+// =========================
+void processCartridgeChange()
+{
+  if (!systemOn)
+    return;
+
+  // pasó de insertado -> no insertado
+  if (!cartInserted && lastCartInserted)
+  {
+    Serial.println("Cartucho retirado");
+
+    if (activeGame)
+    {
+      activeGame->exit();
+      activeGameCard = nullptr;
+      activeGame = nullptr;
+    }
+
+    if (currentScreen)
+    {
+      setScreen(nullptr);
+    }
+
+    consoleState = STATE_MENU;
+  }
+
+  // pasó de no insertado -> insertado
+  if (cartInserted && !lastCartInserted)
+  {
+    Serial.println("Cartucho insertado");
+
+    if (consoleState == STATE_MENU)
+    {
+      if (currentScreen)
+      {
+        setScreen(nullptr);
+      }
+      consoleState = STATE_WAITING_RFID;
+      drawWaitingRFIDScreen();
+    }
+  }
+}
+
+// =========================
+// RFID
+// =========================
+bool isRFIDCardPresent()
+{
+  selectRFID();
+
+  if (!mfrc522.PICC_IsNewCardPresent())
+  {
+    deselectRFID();
+    return false;
+  }
+
+  if (!mfrc522.PICC_ReadCardSerial())
+  {
+    deselectRFID();
+    return false;
+  }
+
+  Serial.print("UID: ");
+  for (byte i = 0; i < mfrc522.uid.size; i++)
+  {
+    if (mfrc522.uid.uidByte[i] < 0x10)
+      Serial.print("0");
+    Serial.print(mfrc522.uid.uidByte[i], HEX);
+    Serial.print(" ");
+  }
+  Serial.println();
+
+  mfrc522.PICC_HaltA();
+  mfrc522.PCD_StopCrypto1();
+  deselectRFID();
+
+  return true;
+}
+
+ColorGame colorGame;
+GameCard colorGameCard = {"00 00 00 00", "ColorGame", &colorGame};
+
+// =========================
+// CARGA DE JUEGO
+// =========================
+IGame *loadGameFromRFID()
+{
+  activeGameCard = &colorGameCard;
+  return activeGameCard->game;
 }
 
 void gameCardRead() {
@@ -121,7 +372,7 @@ void setup() {
 
   // Configurar Bus SPI de Hardware
   // Orden: SCLK, MISO, MOSI, SS (el SS global no importa mucho aquí)
-  SPI.begin(TFT_SCK_RF_SCK, RF_MISO, TFT_SDA_RF_MOSI);
+  SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
 
   digitalWrite(TFT_CS, HIGH);  // Forzamos a la pantalla a ignorar el bus
   mfrc522.PCD_Init();
@@ -129,11 +380,7 @@ void setup() {
   // Inicializar Pantalla
   tft.initR(INITR_BLACKTAB);  // O INITR_REDTAB según tu modelo
   tft.setRotation(1);
-  tft.fillScreen(ST77XX_BLACK);
-  tft.setCursor(20, 40);
-  tft.setTextSize(2);
-  tft.setTextColor(ST77XX_GREEN);
-  tft.println("BIENVENIDO");
+  drawOffScreen();
 
   sound.begin();
   sound.playBootUp();
@@ -148,6 +395,8 @@ void setup() {
   btnRight.begin();
   btnA.begin();
   btnB.begin();
+  btnPower.begin();
+  attachInterrupt(digitalPinToInterrupt(POWER_BUTTON), onPowerButton, FALLING);
 
   // Inicializamos Screen
   currentScreen = new MenuScreen(btnUp, btnDown, btnA, &activeGameCard);
@@ -158,41 +407,190 @@ void setup() {
   delay(2000);
 }
 
-void loop() {
-  gameCardRead();
+void loop()
+{
+  readInput();
+  readCartridgeSwitch();
+  processPowerButton();
+  processCartridgeChange();
 
-  if (currentScreen != nullptr) {
-    ConsoleState newState = currentScreen->update();
-    if (newState != currentState) {
-      currentState = newState;
+  if (!systemOn)
+    return;
 
-      switch (currentState) {
-        case (mainScreen):
-          setScreen(new MenuScreen(btnUp, btnDown, btnA, &activeGameCard));
-          break;
-        case (activeGame):
-          if (activeGameCard != nullptr) {
-            setScreen(new LoadingScreen(activeGameCard));
-            //currentScreen->update();
-          }
-          break;
-        case (calendar):
-          setScreen(new CalendarScreen(btnB));
-          break;
+  switch (consoleState)
+  {
+  case STATE_OFF:
+    break;
 
-        case (settings):
-          setScreen(new SettingsScreen(btnUp, btnDown, btnLeft, btnRight, btnA, btnB));
-          //currentScreen->update();
-          break;
-        default:
-          // Exception?
-          break;
-      };
+  case STATE_MENU:{
+    if (currentScreen == nullptr)
+    {
+      setScreen(new MenuScreen(btnUp, btnDown, btnA, &activeGameCard));
     }
+    {
+      ConsoleState nextState = currentScreen->update();
+
+      if (currentScreen->getNeedsRedraw())
+      {
+        selectScreen();
+        currentScreen->draw(tft);
+        deselectScreen();
+      }
+
+      if (nextState != STATE_MENU)
+      {
+        setScreen(nullptr);
+
+        if (nextState == STATE_CALENDAR)
+        {
+          consoleState = STATE_CALENDAR;
+        }
+        else if (nextState == STATE_SETTINGS)
+        {
+          consoleState = STATE_SETTINGS;
+        }
+        else if (nextState == STATE_LOADING_GAME)
+        {
+          if (cartInserted)
+          {
+            consoleState = STATE_WAITING_RFID;
+            drawWaitingRFIDScreen();
+          }
+          else
+          {
+            consoleState = STATE_MENU;
+          }
+        }
+      }
+    }
+    break;}
+
+  case STATE_CALENDAR: {
+    if (currentScreen == nullptr)
+    {
+      setScreen(new CalendarScreen(btnB));
+    }
+
+    ConsoleState nextState = currentScreen->update();
+
+    if (currentScreen->getNeedsRedraw())
+    {
+      selectScreen();
+      currentScreen->draw(tft);
+      deselectScreen();
+    }
+
+    if (nextState != STATE_CALENDAR)
+    {
+      setScreen(nullptr);
+
+      if (nextState == STATE_MENU)
+      {
+        consoleState = STATE_MENU;
+      }
+    }
+
+    break;
   }
 
-  if (currentScreen->getNeedsRedraw()) {
-    currentScreen->draw(tft);
-    sound.playSelect();
+  case STATE_SETTINGS:
+  {
+    if (currentScreen == nullptr)
+    {
+      setScreen(new SettingsScreen(btnUp, btnDown, btnLeft, btnRight, btnA, btnB));
+    }
+
+    {
+      ConsoleState nextState = currentScreen->update();
+
+      if (currentScreen->getNeedsRedraw())
+      {
+        selectScreen();
+        currentScreen->draw(tft);
+        deselectScreen();
+      }
+
+      if (nextState != STATE_SETTINGS)
+      {
+        setScreen(nullptr);
+
+        if (nextState == STATE_MENU)
+        {
+          consoleState = STATE_MENU;
+        }
+      }
+    }
+    break;
+  }
+
+  case STATE_WAITING_CART:
+  {
+    break;
+  }
+
+  case STATE_WAITING_RFID:
+  {
+    if (!cartInserted)
+    {
+      if (currentScreen)
+      {
+        setScreen(nullptr);
+      }
+      consoleState = STATE_MENU;
+    }
+    else if (isRFIDCardPresent())
+    {
+      consoleState = STATE_LOADING_GAME;
+      drawLoadingScreen();
+    }
+    break;
+  }
+
+  case STATE_LOADING_GAME:
+  {
+    activeGame = loadGameFromRFID();
+
+    if (activeGame)
+    {
+      activeGame->init();
+      consoleState = STATE_GAME_RUNNING;
+    }
+    else
+    {
+      if (currentScreen)
+      {
+        setScreen(nullptr);
+      }
+      consoleState = STATE_MENU;
+    }
+    break;
+  }
+
+  case STATE_GAME_RUNNING: {
+    if (!cartInserted)
+    {
+      if (activeGame)
+      {
+        activeGameCard = nullptr;
+        activeGame->exit();
+        activeGame = nullptr;
+      }
+
+      if (currentScreen)
+      {
+        setScreen(nullptr);
+      }
+
+      consoleState = STATE_MENU;
+    }
+    else if (activeGame)
+    {
+      activeGame->update(input);
+      selectScreen();
+      activeGame->render(tft);
+      deselectScreen();
+    }
+    break;
+  }
   }
 }

@@ -4,18 +4,43 @@
 #include <Arduino.h>
 #include <Adafruit_ST7735.h>
 
+class IGame;
 
 enum ConsoleState {
-  mainScreen,
-  loading,
-  activeGame,
-  calendar,
-  settings,
+  STATE_OFF,
+  STATE_MENU,
+  STATE_CALENDAR,
+  STATE_SETTINGS,
+  STATE_WAITING_CART,
+  STATE_WAITING_RFID,
+  STATE_LOADING_GAME,
+  STATE_GAME_RUNNING
 };
+
+struct InputState {
+  bool currentA = false;
+  bool previousA = false;
+
+  bool currentB = false;
+  bool previousB = false;
+
+  bool currentC = false;
+  bool previousC = false;
+
+  bool currentD = false;
+  bool previousD = false;
+
+  bool pressedA() const { return currentA && !previousA; }
+  bool pressedB() const { return currentB && !previousB; }
+  bool pressedC() const { return currentC && !previousC; }
+  bool pressedD() const { return currentD && !previousD; }
+};
+
 
 struct GameCard {
   String uid;
   String name;
+  IGame* game;
 };
 
 struct Theme {

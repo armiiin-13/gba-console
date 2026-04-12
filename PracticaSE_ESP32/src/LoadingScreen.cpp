@@ -8,10 +8,10 @@ void LoadingScreen::enter() {
 }
 
 ConsoleState LoadingScreen::update() {
-  if (millis() - _startTime > 2000) return activeGame;
+  if (millis() - _startTime > 2000) return STATE_GAME_RUNNING;
 
   // Mientras "carga", devolvemos loading
-  return loading;
+  return STATE_LOADING_GAME;
 }
 
 void LoadingScreen::draw(Adafruit_ST7735& tft) {

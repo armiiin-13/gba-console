@@ -7,8 +7,8 @@ CalendarScreen::CalendarScreen(Button& b) : _btnB(b) {};
 void CalendarScreen::enter() { _needsRedraw = true; }
 
 ConsoleState CalendarScreen::update() {
-  if (_btnB.isPressed()) return mainScreen;
-  return calendar;
+  if (_btnB.isPressed()) return STATE_MENU;
+  return STATE_CALENDAR;
 }
 
 void CalendarScreen::draw(Adafruit_ST7735& tft) {

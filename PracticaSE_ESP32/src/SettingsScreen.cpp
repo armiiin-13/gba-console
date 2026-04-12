@@ -12,7 +12,7 @@ SettingsScreen::SettingsScreen(Button& up, Button& down, Button& l, Button& r, B
 void SettingsScreen::enter() { _needsRedraw = true; }
 
 ConsoleState SettingsScreen::update() {
-    if (_btnB.isPressed()) return mainScreen;
+    if (_btnB.isPressed()) return STATE_MENU;
 
     // 1. Navegación Vertical (Seleccionar opción)
     if (_btnDown.isPressed()) { 
@@ -34,7 +34,7 @@ ConsoleState SettingsScreen::update() {
     }
 
     if (changed) _needsRedraw = true;
-    return settings;
+    return STATE_SETTINGS;
 }
 
 void SettingsScreen::draw(Adafruit_ST7735& tft) {

@@ -12,7 +12,6 @@ ConsoleState MenuScreen::update()
 {
   if (_btnUp.isPressed())
   {
-    Serial.println("UP");
     int old = _cursorMenu;
 
     _cursorMenu--;
@@ -27,7 +26,6 @@ ConsoleState MenuScreen::update()
 
   if (_btnDown.isPressed())
   {
-    Serial.println("DOWN");
     int old = _cursorMenu;
 
     _cursorMenu++;
@@ -47,8 +45,12 @@ ConsoleState MenuScreen::update()
   */
   if (_btnA.isPressed())
   {
-    if (_cursorMenu == 0)
-      return STATE_LOADING_GAME;
+    if (_cursorMenu == 0) {
+      if (_activeCardRef != nullptr && *_activeCardRef != nullptr) {
+        return STATE_LOADING_GAME;
+      }
+      return STATE_MENU;
+    }
     if (_cursorMenu == 1)
       return STATE_CALENDAR;
     if (_cursorMenu == 2)

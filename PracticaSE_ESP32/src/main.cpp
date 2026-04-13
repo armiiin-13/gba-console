@@ -57,18 +57,24 @@ Adafruit_NeoPixel pixel(1, LED_PIN, NEO_GRB + NEO_KHZ800);
 SoundManager sound(BUZZER_PIN);
 
 // Lista de juegos
-GameCard gameList[] = {{"62 09 20 07", "Snake"}, {"51 F7 1F 07", "Tetris"}};
+ColorGame colorGame;
+
+GameCard gameList[] = {
+    {"A5 03 EC 05", "ColorGame", &colorGame},
+    {"62 09 20 07", "Snake"},
+    {"51 F7 1F 07", "Tetris"}};
+
+const int numGames = sizeof(gameList) / sizeof(gameList[0]);
 
 // --- Dependencias---
 ConsoleState consoleState = STATE_OFF;
-Screen* currentScreen = nullptr;
-GameCard* activeGameCard = nullptr;
+Screen *currentScreen = nullptr;
+GameCard *activeGameCard = nullptr;
 IGame *activeGame = nullptr;
 GlobalConfig consoleConfig;
 
-const int numGames = sizeof(gameList) / sizeof(gameList[0]);
-int cursorMenu = 1;        // 0=Jugar 1=Settings 2=Reloj
-bool gameInserted = true;  // Por implementar boton que detecta cartucho
+int cursorMenu = 1;       // 0=Jugar 1=Settings 2=Reloj
+bool gameInserted = true; // Por implementar boton que detecta cartucho
 
 // ---Metodos---
 
@@ -100,20 +106,24 @@ void selectRFID()
   digitalWrite(RF_CS, LOW);
 }
 
-void deselectRFID() {
+void deselectRFID()
+{
   digitalWrite(RF_CS, HIGH);
 }
 
-void setScreen(Screen* nextScreen) {
+void setScreen(Screen *nextScreen)
+{
   // Salimos y liberamos la pantalla en la que estamos
-  if (currentScreen != nullptr) {
+  if (currentScreen != nullptr)
+  {
     currentScreen->exit();
     delete currentScreen;
   }
 
   // Cambiamos la pantalla en la que estamos y la cargamos
   currentScreen = nextScreen;
-  if (currentScreen != nullptr) currentScreen->enter();
+  if (currentScreen != nullptr)
+    currentScreen->enter();
 }
 
 // =========================
@@ -122,19 +132,22 @@ void setScreen(Screen* nextScreen) {
 volatile bool powerIRQ = false;
 bool systemOn = false;
 
-void IRAM_ATTR onPowerButton() {
+void IRAM_ATTR onPowerButton()
+{
   powerIRQ = true;
 }
 
 // =========================
 // UI SISTEMA
 // =========================
-void drawOffScreen() {
+void drawOffScreen()
+{
   selectScreen();
   tft.fillScreen(ST77XX_BLACK);
 }
 
-void drawWaitingRFIDScreen() {
+void drawWaitingRFIDScreen()
+{
   selectScreen();
   tft.fillScreen(ST77XX_BLACK);
 
@@ -147,7 +160,8 @@ void drawWaitingRFIDScreen() {
   tft.println("Acerca RFID");
 }
 
-void drawLoadingScreen() {
+void drawLoadingScreen()
+{
   selectScreen();
   tft.fillScreen(ST77XX_BLACK);
 
@@ -162,7 +176,8 @@ void drawLoadingScreen() {
 // =========================
 InputState input;
 
-void readInput() {
+void readInput()
+{
   input.previousA = input.currentA;
   input.previousB = input.currentB;
   input.previousC = input.currentC;
@@ -180,7 +195,11 @@ bool lastCartInserted = false;
 // =========================
 // LECTURA DE CARTUCHO
 // =========================
-void readCartridgeSwitch() {
+String readRFIDUid();
+void detectInsertedGameCard();
+
+void readCartridgeSwitch()
+{
   lastCartInserted = cartInserted;
   cartInserted = (digitalRead(PIN_CART) == LOW);
 }
@@ -207,10 +226,24 @@ void processPowerButton()
   if (systemOn)
   {
     Serial.println("Sistema ON");
+
     if (currentScreen)
     {
       setScreen(nullptr);
     }
+
+    cartInserted = (digitalRead(PIN_CART) == LOW);
+    lastCartInserted = cartInserted;
+
+    if (cartInserted)
+    {
+      detectInsertedGameCard();
+    }
+    else
+    {
+      activeGameCard = nullptr;
+    }
+
     consoleState = STATE_MENU;
   }
   else
@@ -250,9 +283,10 @@ void processCartridgeChange()
     if (activeGame)
     {
       activeGame->exit();
-      activeGameCard = nullptr;
       activeGame = nullptr;
     }
+
+    activeGameCard = nullptr;
 
     if (currentScreen)
     {
@@ -263,9 +297,12 @@ void processCartridgeChange()
   }
 
   // pasó de no insertado -> insertado
+
   if (cartInserted && !lastCartInserted)
   {
     Serial.println("Cartucho insertado");
+
+    detectInsertedGameCard();
 
     if (consoleState == STATE_MENU)
     {
@@ -273,8 +310,7 @@ void processCartridgeChange()
       {
         setScreen(nullptr);
       }
-      consoleState = STATE_WAITING_RFID;
-      drawWaitingRFIDScreen();
+      consoleState = STATE_MENU;
     }
   }
 }
@@ -298,16 +334,6 @@ bool isRFIDCardPresent()
     return false;
   }
 
-  Serial.print("UID: ");
-  for (byte i = 0; i < mfrc522.uid.size; i++)
-  {
-    if (mfrc522.uid.uidByte[i] < 0x10)
-      Serial.print("0");
-    Serial.print(mfrc522.uid.uidByte[i], HEX);
-    Serial.print(" ");
-  }
-  Serial.println();
-
   mfrc522.PICC_HaltA();
   mfrc522.PCD_StopCrypto1();
   deselectRFID();
@@ -315,35 +341,122 @@ bool isRFIDCardPresent()
   return true;
 }
 
-ColorGame colorGame;
-GameCard colorGameCard = {"00 00 00 00", "ColorGame", &colorGame};
+String readRFIDUid()
+{
+  const uint32_t timeoutMs = 500;
+  uint32_t start = millis();
+
+  while (millis() - start < timeoutMs)
+  {
+    selectRFID();
+
+    bool cardDetected = mfrc522.PICC_IsNewCardPresent();
+    bool cardRead = mfrc522.PICC_ReadCardSerial();
+
+    if (cardDetected && cardRead)
+    {
+      String uid = "";
+
+      for (byte i = 0; i < mfrc522.uid.size; i++)
+      {
+        if (mfrc522.uid.uidByte[i] < 0x10)
+          uid += "0";
+        uid += String(mfrc522.uid.uidByte[i], HEX);
+        if (i < mfrc522.uid.size - 1)
+          uid += " ";
+      }
+
+      uid.toUpperCase();
+
+      Serial.print("UID: ");
+      Serial.println(uid);
+
+      mfrc522.PICC_HaltA();
+      mfrc522.PCD_StopCrypto1();
+      deselectRFID();
+
+      return uid;
+    }
+
+    deselectRFID();
+    delay(20);
+  }
+
+  return "";
+}
+
+void detectInsertedGameCard()
+{
+  activeGameCard = nullptr;
+
+  selectRFID();
+  mfrc522.PCD_Init();
+  deselectRFID();
+  delay(50);
+
+  String uid = readRFIDUid();
+
+  if (uid != "")
+  {
+    for (int i = 0; i < numGames; i++)
+    {
+      if (uid == gameList[i].uid)
+      {
+        activeGameCard = &gameList[i];
+        Serial.print("Juego detectado: ");
+        Serial.println(activeGameCard->name);
+        break;
+      }
+    }
+
+    if (activeGameCard == nullptr)
+    {
+      Serial.print("Tarjeta no reconocida: ");
+      Serial.println(uid);
+    }
+  }
+  else
+  {
+    Serial.println("No se detecto RFID");
+  }
+}
 
 // =========================
 // CARGA DE JUEGO
 // =========================
-IGame *loadGameFromRFID()
+IGame *loadSelectedGame()
 {
-  activeGameCard = &colorGameCard;
-  return activeGameCard->game;
+  if (activeGameCard != nullptr)
+  {
+    return activeGameCard->game;
+  }
+  return nullptr;
 }
 
-void gameCardRead() {
-  if (!gameInserted) return;
+void gameCardRead()
+{
+  if (!gameInserted)
+    return;
 
-  if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
+  if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial())
+  {
     // 1. Convertimos el UID leído a String
     String uidInput = "";
-    for (byte i = 0; i < mfrc522.uid.size; i++) {
+    for (byte i = 0; i < mfrc522.uid.size; i++)
+    {
       uidInput += (mfrc522.uid.uidByte[i] < 0x10 ? "0" : "");
       uidInput += String(mfrc522.uid.uidByte[i], HEX);
-      if (i < mfrc522.uid.size - 1) uidInput += " ";
+      if (i < mfrc522.uid.size - 1)
+        uidInput += " ";
     }
     uidInput.toUpperCase();
 
     // 2. Generamos nuestro puntero con gameFactory
-    for (int i = 0; i < numGames; i++) {
+    for (int i = 0; i < numGames; i++)
+    {
       // Comprobamos que el cartucho insertado esta registrado
-      if (uidInput == gameList[i].uid) {
+      if (uidInput == gameList[i].uid)
+      {
         activeGameCard = &gameList[i];
         currentScreen->enter();
         Serial.print("Cargando: ");
@@ -360,25 +473,26 @@ void gameCardRead() {
   }
 }
 
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   Serial.flush();
   delay(2000);
 
   pixel.begin();
   pixel.setBrightness(5);
-  pixel.setPixelColor(0, pixel.Color(255, 150, 0));  // Amarillo (Iniciando)
+  pixel.setPixelColor(0, pixel.Color(255, 150, 0)); // Amarillo (Iniciando)
   pixel.show();
 
   // Configurar Bus SPI de Hardware
   // Orden: SCLK, MISO, MOSI, SS (el SS global no importa mucho aquí)
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
 
-  digitalWrite(TFT_CS, HIGH);  // Forzamos a la pantalla a ignorar el bus
+  digitalWrite(TFT_CS, HIGH); // Forzamos a la pantalla a ignorar el bus
   mfrc522.PCD_Init();
 
   // Inicializar Pantalla
-  tft.initR(INITR_BLACKTAB);  // O INITR_REDTAB según tu modelo
+  tft.initR(INITR_BLACKTAB); // O INITR_REDTAB según tu modelo
   tft.setRotation(1);
   drawOffScreen();
 
@@ -387,6 +501,11 @@ void setup() {
 
   // Inicializar RFID
   mfrc522.PCD_Init();
+
+  // Inicializar Interruptor
+  pinMode(PIN_CART, INPUT_PULLUP);
+  cartInserted = (digitalRead(PIN_CART) == LOW);
+  lastCartInserted = cartInserted;
 
   // Inicializar botones
   btnUp.begin();
@@ -401,7 +520,7 @@ void setup() {
   // Inicializamos Screen
   currentScreen = new MenuScreen(btnUp, btnDown, btnA, &activeGameCard);
 
-  pixel.setPixelColor(0, pixel.Color(0, 0, 255));  // Azul (Listo)
+  pixel.setPixelColor(0, pixel.Color(0, 0, 255)); // Azul (Listo)
   pixel.show();
   Serial.println("Bus compartido configurado.");
   delay(2000);
@@ -422,7 +541,8 @@ void loop()
   case STATE_OFF:
     break;
 
-  case STATE_MENU:{
+  case STATE_MENU:
+  {
     if (currentScreen == nullptr)
     {
       setScreen(new MenuScreen(btnUp, btnDown, btnA, &activeGameCard));
@@ -451,10 +571,10 @@ void loop()
         }
         else if (nextState == STATE_LOADING_GAME)
         {
-          if (cartInserted)
+          if (cartInserted && activeGameCard != nullptr)
           {
-            consoleState = STATE_WAITING_RFID;
-            drawWaitingRFIDScreen();
+            consoleState = STATE_LOADING_GAME;
+            drawLoadingScreen();
           }
           else
           {
@@ -463,9 +583,11 @@ void loop()
         }
       }
     }
-    break;}
+    break;
+  }
 
-  case STATE_CALENDAR: {
+  case STATE_CALENDAR:
+  {
     if (currentScreen == nullptr)
     {
       setScreen(new CalendarScreen(btnB));
@@ -528,28 +650,9 @@ void loop()
     break;
   }
 
-  case STATE_WAITING_RFID:
-  {
-    if (!cartInserted)
-    {
-      if (currentScreen)
-      {
-        setScreen(nullptr);
-      }
-      consoleState = STATE_MENU;
-    }
-    else if (isRFIDCardPresent())
-    {
-      consoleState = STATE_LOADING_GAME;
-      drawLoadingScreen();
-    }
-    break;
-  }
-
   case STATE_LOADING_GAME:
   {
-    activeGame = loadGameFromRFID();
-
+    activeGame = loadSelectedGame();
     if (activeGame)
     {
       activeGame->init();
@@ -566,7 +669,8 @@ void loop()
     break;
   }
 
-  case STATE_GAME_RUNNING: {
+  case STATE_GAME_RUNNING:
+  {
     if (!cartInserted)
     {
       if (activeGame)

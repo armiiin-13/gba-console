@@ -6,8 +6,8 @@ const char* txt_lang[]  = {"IDIOMA: ", "LANG: "};
 const char* txt_theme[] = {"TEMA: ", "THEME: "};
 const char* txt_sound[] = {"SONIDO: ", "SOUND: "};
 
-SettingsScreen::SettingsScreen(Button& up, Button& down, Button& l, Button& r, Button& a, Button& b) 
-    : _btnUp(up), _btnDown(down), _btnLeft(l), _btnRight(r), _btnA(a), _btnB(b) {}
+SettingsScreen::SettingsScreen(Button& up, Button& down, Button& l, Button& r, Button& a, Button& b,  SoundManager& sound) 
+    : _btnUp(up), _btnDown(down), _btnLeft(l), _btnRight(r), _btnA(a), _btnB(b), _sound(sound) {}
 
 void SettingsScreen::enter() { _needsRedraw = true; }
 
@@ -16,10 +16,12 @@ ConsoleState SettingsScreen::update() {
 
     // 1. Navegación Vertical (Seleccionar opción)
     if (_btnDown.isPressed()) { 
+        _sound.playSelect();
         _selectedOption = (_selectedOption + 1) % 3; 
         _needsRedraw = true; 
     }
     if (_btnUp.isPressed()) { 
+        _sound.playSelect();
         _selectedOption = (_selectedOption - 1 + 3) % 3; 
         _needsRedraw = true; 
     }
@@ -31,6 +33,7 @@ ConsoleState SettingsScreen::update() {
         if (_selectedOption == 1) consoleConfig.isDarkMode = !consoleConfig.isDarkMode;
         if (_selectedOption == 2) consoleConfig.soundEnable = !consoleConfig.soundEnable;
         changed = true;
+        _sound.playSelect();
     }
 
     if (changed) _needsRedraw = true;

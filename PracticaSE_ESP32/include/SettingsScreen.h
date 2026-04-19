@@ -3,6 +3,7 @@
 
 #include "Screen.h"
 #include "Button.h"
+#include "SoundManager.h"
 
 class SettingsScreen : public Screen {
  private:
@@ -15,9 +16,10 @@ class SettingsScreen : public Screen {
   // Variables de estado (Lo que modificamos)
   bool _isEnglish = false;
   bool _soundOn = true;
+  SoundManager& _sound;
 
  public:
-  SettingsScreen(Button& up, Button& down, Button& l, Button& r, Button& a, Button& b);
+  SettingsScreen(Button& up, Button& down, Button& l, Button& r, Button& a, Button& b,  SoundManager& sound);
   void enter() override;
   ConsoleState update() override;
   void draw(Adafruit_ST7735& tft) override;

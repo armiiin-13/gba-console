@@ -1,7 +1,7 @@
 #include "MenuScreen.h"
 
-MenuScreen::MenuScreen(Button& up, Button& down, Button& a, GameCard** cardRef)
-    : _btnUp(up), _btnDown(down), _btnA(a), _activeCardRef(cardRef) {}
+MenuScreen::MenuScreen(Button& up, Button& down, Button& a, GameCard** cardRef, SoundManager& sound)
+    : _btnUp(up), _btnDown(down), _btnA(a), _activeCardRef(cardRef), _sound(sound) {}
 
 void MenuScreen::enter() {
   Serial.println("MenuScreen ENTER");
@@ -15,6 +15,8 @@ ConsoleState MenuScreen::update() {
     _cursorMenu--;
     if (_cursorMenu < 0) _cursorMenu = 2;
 
+    _sound.playSelect();
+
     if (old != _cursorMenu) {
       _needsRedraw = true;
     }
@@ -25,6 +27,8 @@ ConsoleState MenuScreen::update() {
 
     _cursorMenu++;
     if (_cursorMenu > 2) _cursorMenu = 0;
+
+    _sound.playSelect();
 
     if (old != _cursorMenu) {
       _needsRedraw = true;
@@ -37,6 +41,7 @@ ConsoleState MenuScreen::update() {
       2: Ajustes
   */
   if (_btnA.isPressed()) {
+    _sound.playSelect();
     if (_cursorMenu == 0) {
       if (_activeCardRef != nullptr && *_activeCardRef != nullptr) {
         return STATE_LOADING_GAME;

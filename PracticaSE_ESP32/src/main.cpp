@@ -70,7 +70,7 @@ const int numGames = sizeof(gameList) / sizeof(gameList[0]);
 ConsoleState consoleState = STATE_OFF;
 Screen *currentScreen = nullptr;
 GameCard *activeGameCard = nullptr;
-IGame *activeGame = nullptr;
+IGame *runningGame = nullptr;
 GlobalConfig consoleConfig;
 
 int cursorMenu = 1;       // 0=Jugar 1=Settings 2=Reloj
@@ -201,7 +201,7 @@ void detectInsertedGameCard();
 void readCartridgeSwitch()
 {
   lastCartInserted = cartInserted;
-  cartInserted = (digitalRead(PIN_CART) == LOW);
+  cartInserted = (digitalRead(PIN_CART) == HIGH);
 }
 
 // =========================
@@ -250,11 +250,11 @@ void processPowerButton()
   {
     Serial.println("Sistema OFF");
 
-    if (activeGame)
+    if (runningGame)
     {
-      activeGame->exit();
+      runningGame->exit();
       activeGameCard = nullptr;
-      activeGame = nullptr;
+      runningGame = nullptr;
     }
 
     if (currentScreen)
@@ -280,10 +280,10 @@ void processCartridgeChange()
   {
     Serial.println("Cartucho retirado");
 
-    if (activeGame)
+    if (runningGame)
     {
-      activeGame->exit();
-      activeGame = nullptr;
+      runningGame->exit();
+      runningGame = nullptr;
     }
 
     activeGameCard = nullptr;
@@ -518,7 +518,7 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(POWER_BUTTON), onPowerButton, FALLING);
 
   // Inicializamos Screen
-  currentScreen = new MenuScreen(btnUp, btnDown, btnA, &activeGameCard);
+  currentScreen = new MenuScreen(btnUp, btnDown, btnA, &activeGameCard, sound);
 
   pixel.setPixelColor(0, pixel.Color(0, 0, 255)); // Azul (Listo)
   pixel.show();
@@ -545,7 +545,7 @@ void loop()
   {
     if (currentScreen == nullptr)
     {
-      setScreen(new MenuScreen(btnUp, btnDown, btnA, &activeGameCard));
+      setScreen(new MenuScreen(btnUp, btnDown, btnA, &activeGameCard, sound));
     }
     {
       ConsoleState nextState = currentScreen->update();
@@ -619,7 +619,7 @@ void loop()
   {
     if (currentScreen == nullptr)
     {
-      setScreen(new SettingsScreen(btnUp, btnDown, btnLeft, btnRight, btnA, btnB));
+      setScreen(new SettingsScreen(btnUp, btnDown, btnLeft, btnRight, btnA, btnB, sound));
     }
 
     {
@@ -652,10 +652,10 @@ void loop()
 
   case STATE_LOADING_GAME:
   {
-    activeGame = loadSelectedGame();
-    if (activeGame)
+    runningGame = loadSelectedGame();
+    if (runningGame)
     {
-      activeGame->init();
+      runningGame->init();
       consoleState = STATE_GAME_RUNNING;
     }
     else
@@ -673,11 +673,11 @@ void loop()
   {
     if (!cartInserted)
     {
-      if (activeGame)
+      if (runningGame)
       {
         activeGameCard = nullptr;
-        activeGame->exit();
-        activeGame = nullptr;
+        runningGame->exit();
+        runningGame = nullptr;
       }
 
       if (currentScreen)
@@ -687,11 +687,11 @@ void loop()
 
       consoleState = STATE_MENU;
     }
-    else if (activeGame)
+    else if (runningGame)
     {
-      activeGame->update(input);
+      runningGame->update(input);
       selectScreen();
-      activeGame->render(tft);
+      runningGame->render(tft);
       deselectScreen();
     }
     break;

@@ -4,6 +4,7 @@
 #include "Button.h"
 #include "Definitions.h"
 #include "Screen.h"
+#include "SoundManager.h"
 
 class MenuScreen : public Screen {
  private:
@@ -11,6 +12,7 @@ class MenuScreen : public Screen {
   Button& _btnUp;
   Button& _btnDown;
   Button& _btnA;
+  SoundManager& _sound;
 
   // Estado interno menu
   int _cursorMenu = 0;
@@ -18,7 +20,7 @@ class MenuScreen : public Screen {
   GameCard** _activeCardRef;
 
  public:
-  MenuScreen(Button& up, Button& down, Button&, GameCard** cardRef);
+  MenuScreen(Button& up, Button& down, Button& a, GameCard** cardRef, SoundManager& sound);
 
   void enter() override;
   ConsoleState update() override;

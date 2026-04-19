@@ -3,6 +3,7 @@
 SoundManager::SoundManager(int pin) : _pin(pin) {}
 
 void SoundManager::begin(){
+    digitalWrite(_pin, HIGH);
     pinMode(_pin, OUTPUT);
 }
 
@@ -11,7 +12,9 @@ void SoundManager::setMuted(bool mute) {_muted = mute; }
 void SoundManager::playNote(int frequency, int duration) {
     if (!consoleConfig.soundEnable) return;
     if (_muted) return;
+    digitalWrite(_pin, LOW);
     tone(_pin, frequency, duration);
+    digitalWrite(_pin, HIGH);
 }
 
 void SoundManager::playSelect(){

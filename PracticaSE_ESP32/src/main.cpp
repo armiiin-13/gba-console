@@ -21,7 +21,7 @@
 
 #define BUTTON_UP 1
 #define BUTTON_DOWN 2
-#define BUTTON_RIGHT 4
+#define BUTTON_RIGHT 5
 #define BUTTON_LEFT 6
 #define BUTTON_A 20
 #define BUTTON_B 41

@@ -13,6 +13,8 @@
 #include "SettingsScreen.h"
 #include "SoundManager.h"
 #include "ColorGame.h"
+#include "SnakeGame.h"
+#include "TetrisGame.h"
 
 // --- Pines ---
 #define BUZZER_PIN 4
@@ -58,11 +60,13 @@ SoundManager sound(BUZZER_PIN);
 
 // Lista de juegos
 ColorGame colorGame;
+SnakeGame snakeGame;
+TetrisGame tetrisGame;
 
 GameCard gameList[] = {
-    {"A5 03 EC 05", "ColorGame", &colorGame},
-    {"62 09 20 07", "Snake"},
-    {"51 F7 1F 07", "Tetris"}};
+    {"A5 03 EC 05", "ColorGame",  &colorGame},
+    {"62 09 20 07", "Snake", &snakeGame},
+    {"51 F7 1F 07", "Tetris"}};  
 
 const int numGames = sizeof(gameList) / sizeof(gameList[0]);
 

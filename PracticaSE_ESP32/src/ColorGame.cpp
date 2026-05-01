@@ -9,32 +9,32 @@ void ColorGame::init() {
 }
 
 void ColorGame::update(const InputState& in) {
-  if (in.pressedA()) {
+  if (in.pressedUp()) {
     currentColor = ST77XX_RED;
     needsRedraw = true;
     Serial.println("A -> ROJO");
   }
 
-  if (in.pressedB()) {
+  if (in.pressedDown()) {
     currentColor = ST77XX_GREEN;
     needsRedraw = true;
     Serial.println("B -> VERDE");
   }
 
-  if (in.pressedC()) {
+  if (in.pressedLeft()) {
     currentColor = ST77XX_BLUE;
     needsRedraw = true;
     Serial.println("C -> AZUL");
   }
 
-  if (in.pressedD()) {
+  if (in.pressedRight()) {
     currentColor = ST77XX_YELLOW;
     needsRedraw = true;
     Serial.println("D -> AMARILLO");
   }
 }
 
-void ColorGame::render(Adafruit_ST7735& tft) {
+void ColorGame::render(Adafruit_ST7735& tft, SoundManager& sound) {
   if (!needsRedraw) return;
 
   tft.fillScreen(currentColor);

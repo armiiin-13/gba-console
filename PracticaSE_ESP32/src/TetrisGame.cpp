@@ -150,14 +150,14 @@ uint32_t TetrisGame::fallMs() const {
 
 void TetrisGame::update(const InputState& in) {
   if (gameOver) {
-    if (in.pressedA() || in.pressedB() || in.pressedC() || in.pressedD()) reset();
+    if (in.pressedUp() || in.pressedDown() || in.pressedLeft() || in.pressedRight()) reset();
     return;
   }
 
   uint32_t now = millis();
 
   // ── Rotación (con wall-kicks básicos) ──
-  if (in.pressedA()) {
+  if (in.pressedUp()) {
     int8_t nr = (curRot + 1) % 4;
     static const int8_t KICKS[] = {0, -1, 1, -2, 2};
     for (int k = 0; k < 5; k++) {
@@ -171,18 +171,18 @@ void TetrisGame::update(const InputState& in) {
   }
 
   // ── Movimiento lateral con DAS ──
-  if (in.pressedC()) {
+  if (in.pressedLeft()) {
     if (fits(curType, curRot, curX - 1, curY)) { curX--; pieceChanged = needsRedraw = true; }
     dasLeft = true; dasRight = false;
     dasTimer = dasRepeatTimer = now;
   }
-  if (in.pressedD()) {
+  if (in.pressedRight()) {
     if (fits(curType, curRot, curX + 1, curY)) { curX++; pieceChanged = needsRedraw = true; }
     dasRight = true; dasLeft = false;
     dasTimer = dasRepeatTimer = now;
   }
-  if (!in.currentC) dasLeft  = false;
-  if (!in.currentD) dasRight = false;
+  if (!in.currentLeft) dasLeft  = false;
+  if (!in.currentRight) dasRight = false;
 
   // Auto-repetición tras 150ms, cada 50ms
   if (dasLeft  && now - dasTimer >= 150 && now - dasRepeatTimer >= 50) {
@@ -195,7 +195,7 @@ void TetrisGame::update(const InputState& in) {
   }
 
   // ── Gravedad (B = bajada rápida) ──
-  uint32_t eff = in.currentB ? 50 : fallMs();
+  uint32_t eff = in.currentDown ? 50 : fallMs();
   if (now - lastFallMs >= eff) {
     lastFallMs = now;
     if (fits(curType, curRot, curX, curY + 1)) {
@@ -319,7 +319,7 @@ void TetrisGame::drawGameOver(Adafruit_ST7735& tft) const {
 
 // ─── Render ────────────────────────────────────────────────────────
 
-void TetrisGame::render(Adafruit_ST7735& tft) {
+void TetrisGame::render(Adafruit_ST7735& tft, SoundManager& sound) {
   if (!needsRedraw && !fullRedraw && !hudDirty) return;
 
   // Pantalla de game over

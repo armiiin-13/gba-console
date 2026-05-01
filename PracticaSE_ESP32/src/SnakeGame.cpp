@@ -29,17 +29,17 @@ void SnakeGame::exit() {
 
 void SnakeGame::update(const InputState& in) {
   if (phase == PHASE_DEAD) {
-    if (in.pressedA() || in.pressedB() || in.pressedC() || in.pressedD()) {
+    if (in.pressedUp() || in.pressedDown() || in.pressedLeft() || in.pressedRight()) {
       reset();
     }
     return;
   }
 
   // Cambio de dirección (no se puede invertir)
-  if (in.pressedA() && dir != SDIR_DOWN)  nextDir = SDIR_UP;
-  if (in.pressedB() && dir != SDIR_UP)    nextDir = SDIR_DOWN;
-  if (in.pressedC() && dir != SDIR_RIGHT) nextDir = SDIR_LEFT;
-  if (in.pressedD() && dir != SDIR_LEFT)  nextDir = SDIR_RIGHT;
+  if (in.pressedUp() && dir != SDIR_DOWN)  nextDir = SDIR_UP;
+  if (in.pressedDown() && dir != SDIR_UP)    nextDir = SDIR_DOWN;
+  if (in.pressedLeft() && dir != SDIR_RIGHT) nextDir = SDIR_LEFT;
+  if (in.pressedRight() && dir != SDIR_LEFT)  nextDir = SDIR_RIGHT;
 
   uint32_t now = millis();
   if (now - lastMoveMs < moveInterval) return;
@@ -104,7 +104,7 @@ void SnakeGame::update(const InputState& in) {
   needsRedraw = true;
 }
 
-void SnakeGame::render(Adafruit_ST7735& tft) {
+void SnakeGame::render(Adafruit_ST7735& tft, SoundManager& sound) {
   if (!needsRedraw) return;
   needsRedraw = false;
 

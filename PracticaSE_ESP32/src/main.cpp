@@ -15,6 +15,9 @@
 #include "ColorGame.h"
 #include "SnakeGame.h"
 #include "TetrisGame.h"
+#include "PokemonBattleGame.h"
+#include "MemoryGame.h"
+#include "DanceRevolutionGame.h"
 
 // --- Pines ---
 #define BUZZER_PIN 4
@@ -62,11 +65,20 @@ SoundManager sound(BUZZER_PIN);
 ColorGame colorGame;
 SnakeGame snakeGame;
 TetrisGame tetrisGame;
+PokemonBattleGame pokeBattleGame;
+MemoryGame memoryGame;
+DanceRevolutionGame danceRev;
 
 GameCard gameList[] = {
-    {"A5 03 EC 05", "ColorGame",  &colorGame},
+    {"A5 03 EC 05", "Color Game",  &colorGame},
     {"62 09 20 07", "Snake", &snakeGame},
-    {"51 F7 1F 07", "Tetris"}};  
+    {"51 F7 1F 07", "Tetris", &tetrisGame},
+    {"5D E0 B1 41", "Snake", &snakeGame},
+    {"FC 2C B2 41", "Tetris", &tetrisGame},
+    {"E0 EA B1 41", "Pokemon Battle", &pokeBattleGame},
+    {"15 71 B2 41", "Memory Game", &memoryGame},
+    {"4B A0 B1 41", "Dance Rev.", &danceRev}
+  };  
 
 const int numGames = sizeof(gameList) / sizeof(gameList[0]);
 
@@ -175,6 +187,41 @@ void drawLoadingScreen()
   tft.println("Cargando juego...");
 }
 
+//////////// BORRAR -> SOLO PARA PILLAR IDS
+void drawRFIDUidScreen(String uid)
+{
+  selectScreen();
+
+  tft.fillScreen(ST77XX_BLACK);
+
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_GREEN);
+  tft.setCursor(10, 20);
+  tft.println("RFID detectado:");
+
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(10, 45);
+  tft.println(uid);
+
+  if (activeGameCard != nullptr)
+  {
+    tft.setTextColor(ST77XX_CYAN);
+    tft.setCursor(10, 75);
+    tft.print("Juego: ");
+    tft.println(activeGameCard->name);
+  }
+  else
+  {
+    tft.setTextColor(ST77XX_RED);
+    tft.setCursor(10, 75);
+    tft.println("Tarjeta no reconocida");
+  }
+
+  deselectScreen();
+  delay(5000);
+}
+//////////////////////////////////////////////
+
 // =========================
 // LECTURA DE INPUT
 // =========================
@@ -182,15 +229,19 @@ InputState input;
 
 void readInput()
 {
+  input.previousUp = input.currentUp;
+  input.previousDown = input.currentDown;
+  input.previousLeft = input.currentLeft;
+  input.previousRight = input.currentRight;
   input.previousA = input.currentA;
   input.previousB = input.currentB;
-  input.previousC = input.currentC;
-  input.previousD = input.currentD;
 
-  input.currentA = btnUp.isPressed();
-  input.currentB = btnDown.isPressed();
-  input.currentC = btnLeft.isPressed();
-  input.currentD = btnRight.isPressed();
+  input.currentUp = btnUp.isPressed();
+  input.currentDown = btnDown.isPressed();
+  input.currentLeft = btnLeft.isPressed();
+  input.currentRight = btnRight.isPressed();
+  input.currentA = btnA.isPressed();
+  input.currentB = btnB.isPressed();
 }
 
 bool cartInserted = false;
@@ -417,6 +468,7 @@ void detectInsertedGameCard()
     {
       Serial.print("Tarjeta no reconocida: ");
       Serial.println(uid);
+      drawRFIDUidScreen(uid);
     }
   }
   else
@@ -497,7 +549,7 @@ void setup()
 
   // Inicializar Pantalla
   tft.initR(INITR_BLACKTAB); // O INITR_REDTAB según tu modelo
-  tft.setRotation(1);
+  tft.setRotation(3);
   drawOffScreen();
 
   sound.begin();
@@ -530,8 +582,7 @@ void setup()
   delay(2000);
 }
 
-void loop()
-{
+void loop() {
   readInput();
   readCartridgeSwitch();
   processPowerButton();
@@ -695,7 +746,7 @@ void loop()
     {
       runningGame->update(input);
       selectScreen();
-      runningGame->render(tft);
+      runningGame->render(tft, sound);
       deselectScreen();
     }
     break;

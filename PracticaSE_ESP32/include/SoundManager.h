@@ -18,6 +18,9 @@ class SoundManager {
   void playBootUp();
 
   void playNote(int frecuency, int duration);
+
+  void playToneAsync(int frequency);
+  void stopTone();
 };
 
 #endif

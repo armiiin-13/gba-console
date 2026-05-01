@@ -17,22 +17,30 @@ enum ConsoleState {
 };
 
 struct InputState {
+  bool currentUp = false;
+  bool previousUp = false;
+
+  bool currentDown = false;
+  bool previousDown = false;
+
+  bool currentLeft = false;
+  bool previousLeft = false;
+
+  bool currentRight = false;
+  bool previousRight = false;
+
   bool currentA = false;
   bool previousA = false;
 
   bool currentB = false;
   bool previousB = false;
 
-  bool currentC = false;
-  bool previousC = false;
-
-  bool currentD = false;
-  bool previousD = false;
-
+  bool pressedUp() const { return currentUp && !previousUp; }
+  bool pressedDown() const { return currentDown && !previousDown; }
+  bool pressedLeft() const { return currentLeft && !previousLeft; }
+  bool pressedRight() const { return currentRight && !previousRight; }
   bool pressedA() const { return currentA && !previousA; }
   bool pressedB() const { return currentB && !previousB; }
-  bool pressedC() const { return currentC && !previousC; }
-  bool pressedD() const { return currentD && !previousD; }
 };
 
 

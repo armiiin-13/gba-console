@@ -21,8 +21,17 @@ void SoundManager::playSelect() { playNote(1500, 50); }
 
 void SoundManager::playBootUp() {
   int melody[] = {262, 330, 392, 523};
-  for (int note : melody) {
+  for (int note : melody) { 
     playNote(note, 150);
     delay(160);
   }
+}
+
+void SoundManager::playToneAsync(int frequency) {
+  if (!consoleConfig.soundEnable || _muted) return;
+  tone(_pin, frequency);
+}
+
+void SoundManager::stopTone() {
+  noTone(_pin);
 }

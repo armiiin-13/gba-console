@@ -62,6 +62,8 @@ void TetrisGame::reset() {
   dasLeft = dasRight = false;
   dasTimer = dasRepeatTimer = 0;
   lastFallMs = millis();
+  lastClearedLines = 0;
+  lastSoundMs = 0;
   nxtType = random(7);
   spawnPiece();
 }
@@ -139,6 +141,8 @@ void TetrisGame::addScore(int cleared) {
   if (newLvl > 10) newLvl = 10;
   level = newLvl;
   hudDirty = true;
+  // Flag para reproducir sonido de líneas eliminadas
+  // Se será útil en render
 }
 
 uint32_t TetrisGame::fallMs() const {
@@ -157,27 +161,31 @@ void TetrisGame::update(const InputState& in) {
   uint32_t now = millis();
 
   // ── Rotación (con wall-kicks básicos) ──
-  if (in.pressedUp()) {
+  if (in.pressedUp() || in.pressedA()) {
     int8_t nr = (curRot + 1) % 4;
     static const int8_t KICKS[] = {0, -1, 1, -2, 2};
+    bool rotated = false;
     for (int k = 0; k < 5; k++) {
       if (fits(curType, nr, curX + KICKS[k], curY)) {
         curX += KICKS[k];
         curRot = nr;
         pieceChanged = needsRedraw = true;
+        rotated = true;
         break;
       }
     }
+    // Guardar rotación para sonido en render
+    if (rotated) hudDirty = true;
   }
 
   // ── Movimiento lateral con DAS ──
   if (in.pressedLeft()) {
-    if (fits(curType, curRot, curX - 1, curY)) { curX--; pieceChanged = needsRedraw = true; }
+    if (fits(curType, curRot, curX - 1, curY)) { curX--; pieceChanged = needsRedraw = true; hudDirty = true; }
     dasLeft = true; dasRight = false;
     dasTimer = dasRepeatTimer = now;
   }
   if (in.pressedRight()) {
-    if (fits(curType, curRot, curX + 1, curY)) { curX++; pieceChanged = needsRedraw = true; }
+    if (fits(curType, curRot, curX + 1, curY)) { curX++; pieceChanged = needsRedraw = true; hudDirty = true; }
     dasRight = true; dasLeft = false;
     dasTimer = dasRepeatTimer = now;
   }
@@ -187,11 +195,11 @@ void TetrisGame::update(const InputState& in) {
   // Auto-repetición tras 150ms, cada 50ms
   if (dasLeft  && now - dasTimer >= 150 && now - dasRepeatTimer >= 50) {
     dasRepeatTimer = now;
-    if (fits(curType, curRot, curX - 1, curY)) { curX--; pieceChanged = needsRedraw = true; }
+    if (fits(curType, curRot, curX - 1, curY)) { curX--; pieceChanged = needsRedraw = true; hudDirty = true; }
   }
   if (dasRight && now - dasTimer >= 150 && now - dasRepeatTimer >= 50) {
     dasRepeatTimer = now;
-    if (fits(curType, curRot, curX + 1, curY)) { curX++; pieceChanged = needsRedraw = true; }
+    if (fits(curType, curRot, curX + 1, curY)) { curX++; pieceChanged = needsRedraw = true; hudDirty = true; }
   }
 
   // ── Gravedad (B = bajada rápida) ──
@@ -205,6 +213,7 @@ void TetrisGame::update(const InputState& in) {
       // Bloquear pieza
       doLock();
       int cleared = countAndClear();
+      lastClearedLines = cleared;  // guardar para sonido
       addScore(cleared);
       spawnPiece();
       fullRedraw = needsRedraw = true;
@@ -327,6 +336,9 @@ void TetrisGame::render(Adafruit_ST7735& tft, SoundManager& sound) {
     if (fullRedraw) {
       drawGameOver(tft);
       fullRedraw = needsRedraw = false;
+      sound.playNote(200, 100);  // Sonido game over bajo
+      delay(100);
+      sound.playNote(150, 150);  // Descenso
     }
     return;
   }
@@ -342,6 +354,26 @@ void TetrisGame::render(Adafruit_ST7735& tft, SoundManager& sound) {
     prevType = curType; prevRot = curRot; prevX = curX; prevY = curY;
     fullRedraw = hudDirty = needsRedraw = false;
     return;
+  }
+
+  // Reproducir sonido si se limpiaron líneas
+  if (lastClearedLines > 0) {
+    uint32_t now = millis();
+    if (now - lastSoundMs > 150) {
+      static const int notes[] = {262, 330, 392, 523};
+      int noteIdx = (lastClearedLines <= 4) ? (lastClearedLines - 1) : 3;
+      sound.playNote(notes[noteIdx], 100);
+      lastSoundMs = now;
+      lastClearedLines = 0;
+    }
+  }
+
+  // Sonido suave cuando se rota o mueve
+  if (needsRedraw && pieceChanged && millis() - lastSoundMs > 80) {
+    if (prevX != curX || prevRot != curRot) {
+      sound.playNote(880, 20);  // Sonido suave para movimiento/rotación
+      lastSoundMs = millis();
+    }
   }
 
   // Repintado incremental: solo la pieza que se movió/rotó

@@ -37,6 +37,9 @@ private:
   uint32_t lastFallMs;
   bool     dasLeft, dasRight;
   uint32_t dasTimer, dasRepeatTimer;
+  
+  int      lastClearedLines = 0;  // para sonidos de líneas
+  uint32_t lastSoundMs = 0;       // para evitar sonidos muy seguidos
 
   void     reset();
   void     spawnPiece();

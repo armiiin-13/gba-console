@@ -40,6 +40,9 @@ class SnakeGame : public IGame {
   bool fullRedraw;   // repintar pantalla entera
   bool tailMoved;    // la cola avanzó (hay que borrarla)
   Pt prevTail;       // posición anterior de la cola
+  
+  bool playSoundEat = false;   // reproducir sonido de comer
+  bool playSoundDie = false;   // reproducir sonido de muerte
 
   void reset();
   void spawnFood();

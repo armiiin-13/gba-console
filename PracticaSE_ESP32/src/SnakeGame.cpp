@@ -60,6 +60,7 @@ void SnakeGame::update(const InputState& in) {
   if (nh.x < 0 || nh.x >= SG_COLS || nh.y < 0 || nh.y >= SG_ROWS) {
     phase = PHASE_DEAD;
     fullRedraw = needsRedraw = true;
+    playSoundDie = true;
     return;
   }
 
@@ -77,6 +78,7 @@ void SnakeGame::update(const InputState& in) {
       if (body[idx].x == nh.x && body[idx].y == nh.y) {
         phase = PHASE_DEAD;
         fullRedraw = needsRedraw = true;
+        playSoundDie = true;
         return;
       }
       idx = (idx + 1) % SG_MAXLEN;
@@ -96,6 +98,7 @@ void SnakeGame::update(const InputState& in) {
     score++;
     moveInterval = speedMs();
     spawnFood();
+    playSoundEat = true;
   } else {
     tailMoved = true;
     tailIdx = (tailIdx + 1) % SG_MAXLEN;
@@ -113,6 +116,15 @@ void SnakeGame::render(Adafruit_ST7735& tft, SoundManager& sound) {
     if (fullRedraw) {
       renderGameOver(tft);
       fullRedraw = false;
+      // Reproducir sonido de muerte: descenso lento
+      if (playSoundDie) {
+        sound.playNote(400, 100);
+        delay(50);
+        sound.playNote(300, 100);
+        delay(50);
+        sound.playNote(200, 150);
+        playSoundDie = false;
+      }
     }
     return;
   }
@@ -133,6 +145,14 @@ void SnakeGame::render(Adafruit_ST7735& tft, SoundManager& sound) {
   }
 
   // --- Repintado incremental (caso normal) ---
+
+  // Reproducir sonido de comer si aplica
+  if (playSoundEat) {
+    sound.playNote(400, 100);
+    delay(50);
+    sound.playNote(600, 100);  // Sonido ascendente
+    playSoundEat = false;
+  }
 
   // 1. Borrar celda de la cola anterior (si la cola avanzó)
   if (tailMoved) {
@@ -178,6 +198,8 @@ void SnakeGame::reset() {
   tailMoved    = false;
   fullRedraw   = true;
   needsRedraw  = true;
+  playSoundEat = false;
+  playSoundDie = false;
 
   spawnFood();
 }

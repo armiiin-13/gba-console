@@ -19,7 +19,7 @@
 #include "MemoryGame.h"
 #include "DanceRevolutionGame.h"
 
-// --- Pines ---
+// ---- PINS ----
 #define BUZZER_PIN 4
 
 #define POWER_BUTTON 15
@@ -31,7 +31,7 @@
 #define BUTTON_A 20
 #define BUTTON_B 41
 
-#define PIN_CART 35 // interruptor que simula cartucho insertado
+#define PIN_CART 35
 
 #define TFT_CS 9
 #define TFT_RST 16
@@ -46,7 +46,7 @@
 
 #define LED_PIN 48
 
-// Inicializacion botones
+// ---- DEFINE BUTTONS ----
 Button btnPower(POWER_BUTTON);
 Button btnUp(BUTTON_UP);
 Button btnDown(BUTTON_DOWN);
@@ -55,13 +55,13 @@ Button btnRight(BUTTON_RIGHT);
 Button btnA(BUTTON_A);
 Button btnB(BUTTON_B);
 
-// --- Components ---
+// ---- COMPONENTS ----
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 MFRC522 mfrc522(RF_CS, RF_RST);
 Adafruit_NeoPixel pixel(1, LED_PIN, NEO_GRB + NEO_KHZ800);
 SoundManager sound(BUZZER_PIN);
 
-// Lista de juegos
+// ---- GAMELIST ----
 ColorGame colorGame;
 SnakeGame snakeGame;
 TetrisGame tetrisGame;
@@ -82,188 +82,44 @@ GameCard gameList[] = {
 
 const int numGames = sizeof(gameList) / sizeof(gameList[0]);
 
-// --- Dependencias---
+// ---- CONSOLE STATE VARIABLES ----
 ConsoleState consoleState = STATE_OFF;
 Screen *currentScreen = nullptr;
 GameCard *activeGameCard = nullptr;
 IGame *runningGame = nullptr;
 GlobalConfig consoleConfig;
 
-int cursorMenu = 1;       // 0=Jugar 1=Settings 2=Reloj
-bool gameInserted = true; // Por implementar boton que detecta cartucho
+int cursorMenu = 1;       // 0=Play 1=Settings 2=Clock
+bool gameInserted = true;
 
-// ---Metodos---
-
-/*
-Screen* gameFactory(String uid) {
-  if (uid == "62 09 20 07") return new SnakeGame();
-  if (uid == "51 F7 1F 07") return new TetrisGame();
-  return nullptr;
-}
-*/
-
-// =========================
-// FUNCIONES SPI
-// =========================
-void selectScreen()
-{
+// ---- SPI CONTROLLERS ----
+void selectScreen() {
   digitalWrite(RF_CS, HIGH);
   digitalWrite(TFT_CS, LOW);
 }
 
-void deselectScreen()
-{
+void deselectScreen() {
   digitalWrite(TFT_CS, HIGH);
 }
 
-void selectRFID()
-{
+void selectRFID() {
   digitalWrite(TFT_CS, HIGH);
   digitalWrite(RF_CS, LOW);
 }
 
-void deselectRFID()
-{
+void deselectRFID() {
   digitalWrite(RF_CS, HIGH);
 }
 
-void setScreen(Screen *nextScreen)
-{
-  // Salimos y liberamos la pantalla en la que estamos
-  if (currentScreen != nullptr)
-  {
-    currentScreen->exit();
-    delete currentScreen;
-  }
-
-  // Cambiamos la pantalla en la que estamos y la cargamos
-  currentScreen = nextScreen;
-  if (currentScreen != nullptr)
-    currentScreen->enter();
-}
-
-// =========================
-// ISR POWER
-// =========================
+// ---- POWER + ISR ----
 volatile bool powerIRQ = false;
 bool systemOn = false;
 
-void IRAM_ATTR onPowerButton()
-{
+void IRAM_ATTR onPowerButton() {
   powerIRQ = true;
 }
 
-// =========================
-// UI SISTEMA
-// =========================
-void drawOffScreen()
-{
-  selectScreen();
-  tft.fillScreen(ST77XX_BLACK);
-}
-
-void drawWaitingRFIDScreen()
-{
-  selectScreen();
-  tft.fillScreen(ST77XX_BLACK);
-
-  tft.setTextSize(1);
-  tft.setTextColor(ST77XX_CYAN);
-  tft.setCursor(12, 30);
-  tft.println("Cartucho detectado");
-
-  tft.setCursor(16, 50);
-  tft.println("Acerca RFID");
-}
-
-void drawLoadingScreen()
-{
-  selectScreen();
-  tft.fillScreen(ST77XX_BLACK);
-
-  tft.setTextSize(1);
-  tft.setTextColor(ST77XX_GREEN);
-  tft.setCursor(18, 50);
-  tft.println("Cargando juego...");
-}
-
-//////////// BORRAR -> SOLO PARA PILLAR IDS
-void drawRFIDUidScreen(String uid)
-{
-  selectScreen();
-
-  tft.fillScreen(ST77XX_BLACK);
-
-  tft.setTextSize(1);
-  tft.setTextColor(ST77XX_GREEN);
-  tft.setCursor(10, 20);
-  tft.println("RFID detectado:");
-
-  tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(10, 45);
-  tft.println(uid);
-
-  if (activeGameCard != nullptr)
-  {
-    tft.setTextColor(ST77XX_CYAN);
-    tft.setCursor(10, 75);
-    tft.print("Juego: ");
-    tft.println(activeGameCard->name);
-  }
-  else
-  {
-    tft.setTextColor(ST77XX_RED);
-    tft.setCursor(10, 75);
-    tft.println("Tarjeta no reconocida");
-  }
-
-  deselectScreen();
-  delay(5000);
-}
-//////////////////////////////////////////////
-
-// =========================
-// LECTURA DE INPUT
-// =========================
-InputState input;
-
-void readInput()
-{
-  input.previousUp = input.currentUp;
-  input.previousDown = input.currentDown;
-  input.previousLeft = input.currentLeft;
-  input.previousRight = input.currentRight;
-  input.previousA = input.currentA;
-  input.previousB = input.currentB;
-
-  input.currentUp = btnUp.isPressed();
-  input.currentDown = btnDown.isPressed();
-  input.currentLeft = btnLeft.isPressed();
-  input.currentRight = btnRight.isPressed();
-  input.currentA = btnA.isPressed();
-  input.currentB = btnB.isPressed();
-}
-
-bool cartInserted = false;
-bool lastCartInserted = false;
-
-// =========================
-// LECTURA DE CARTUCHO
-// =========================
-String readRFIDUid();
-void detectInsertedGameCard();
-
-void readCartridgeSwitch()
-{
-  lastCartInserted = cartInserted;
-  cartInserted = (digitalRead(PIN_CART) == HIGH);
-}
-
-// =========================
-// POWER
-// =========================
-void processPowerButton()
-{
+void processPowerButton() {
   static uint32_t lastPress = 0;
 
   if (!powerIRQ)
@@ -278,42 +134,33 @@ void processPowerButton()
 
   systemOn = !systemOn;
 
-  if (systemOn)
-  {
-    Serial.println("Sistema ON");
+  if (systemOn) {
+    Serial.println("System ON");
 
-    if (currentScreen)
-    {
+    if (currentScreen) {
       setScreen(nullptr);
     }
 
     cartInserted = (digitalRead(PIN_CART) == LOW);
     lastCartInserted = cartInserted;
 
-    if (cartInserted)
-    {
+    if (cartInserted) {
       detectInsertedGameCard();
-    }
-    else
-    {
+    } else {
       activeGameCard = nullptr;
     }
 
     consoleState = STATE_MENU;
-  }
-  else
-  {
-    Serial.println("Sistema OFF");
+  } else {
+    Serial.println("System OFF");
 
-    if (runningGame)
-    {
+    if (runningGame) {
       runningGame->exit();
       activeGameCard = nullptr;
       runningGame = nullptr;
     }
 
-    if (currentScreen)
-    {
+    if (currentScreen) {
       setScreen(nullptr);
     }
 
@@ -322,69 +169,45 @@ void processPowerButton()
   }
 }
 
-// =========================
-// CAMBIO DE CARTUCHO
-// =========================
-void processCartridgeChange()
-{
-  if (!systemOn)
-    return;
-
-  // pasó de insertado -> no insertado
-  if (!cartInserted && lastCartInserted)
-  {
-    Serial.println("Cartucho retirado");
-
-    if (runningGame)
-    {
-      runningGame->exit();
-      runningGame = nullptr;
-    }
-
-    activeGameCard = nullptr;
-
-    if (currentScreen)
-    {
-      setScreen(nullptr);
-    }
-
-    consoleState = STATE_MENU;
-  }
-
-  // pasó de no insertado -> insertado
-
-  if (cartInserted && !lastCartInserted)
-  {
-    Serial.println("Cartucho insertado");
-
-    detectInsertedGameCard();
-
-    if (consoleState == STATE_MENU)
-    {
-      if (currentScreen)
-      {
-        setScreen(nullptr);
-      }
-      consoleState = STATE_MENU;
-    }
-  }
+// ---- SYSTEM SCREENS ----
+void drawOffScreen() {
+  selectScreen();
+  tft.fillScreen(ST77XX_BLACK);
 }
 
-// =========================
-// RFID
-// =========================
-bool isRFIDCardPresent()
-{
+void drawLoadingScreen() {
+  selectScreen();
+  tft.fillScreen(ST77XX_BLACK);
+
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_GREEN);
+  tft.setCursor(18, 50);
+  tft.println("Loading Game...");
+}
+
+void setScreen(Screen *nextScreen) {
+  // exit and free screen
+  if (currentScreen != nullptr) {
+    currentScreen->exit();
+    delete currentScreen;
+  }
+
+  // change screen and load
+  currentScreen = nextScreen;
+  if (currentScreen != nullptr)
+    currentScreen->enter();
+}
+
+// ---- RFID ----
+bool isRFIDCardPresent() {
   selectRFID();
 
-  if (!mfrc522.PICC_IsNewCardPresent())
-  {
+  if (!mfrc522.PICC_IsNewCardPresent()) {
     deselectRFID();
     return false;
   }
 
-  if (!mfrc522.PICC_ReadCardSerial())
-  {
+  if (!mfrc522.PICC_ReadCardSerial()) {
     deselectRFID();
     return false;
   }
@@ -396,24 +219,20 @@ bool isRFIDCardPresent()
   return true;
 }
 
-String readRFIDUid()
-{
+String readRFIDUid() {
   const uint32_t timeoutMs = 500;
   uint32_t start = millis();
 
-  while (millis() - start < timeoutMs)
-  {
+  while (millis() - start < timeoutMs) {
     selectRFID();
 
     bool cardDetected = mfrc522.PICC_IsNewCardPresent();
     bool cardRead = mfrc522.PICC_ReadCardSerial();
 
-    if (cardDetected && cardRead)
-    {
+    if (cardDetected && cardRead) {
       String uid = "";
 
-      for (byte i = 0; i < mfrc522.uid.size; i++)
-      {
+      for (byte i = 0; i < mfrc522.uid.size; i++) {
         if (mfrc522.uid.uidByte[i] < 0x10)
           uid += "0";
         uid += String(mfrc522.uid.uidByte[i], HEX);
@@ -440,8 +259,7 @@ String readRFIDUid()
   return "";
 }
 
-void detectInsertedGameCard()
-{
+void detectInsertedGameCard(){
   activeGameCard = nullptr;
 
   selectRFID();
@@ -451,12 +269,9 @@ void detectInsertedGameCard()
 
   String uid = readRFIDUid();
 
-  if (uid != "")
-  {
-    for (int i = 0; i < numGames; i++)
-    {
-      if (uid == gameList[i].uid)
-      {
+  if (uid != "") {
+    for (int i = 0; i < numGames; i++) {
+      if (uid == gameList[i].uid) {
         activeGameCard = &gameList[i];
         Serial.print("Juego detectado: ");
         Serial.println(activeGameCard->name);
@@ -464,106 +279,151 @@ void detectInsertedGameCard()
       }
     }
 
-    if (activeGameCard == nullptr)
-    {
-      Serial.print("Tarjeta no reconocida: ");
+    if (activeGameCard == nullptr) {
+      Serial.print("Card not recognised: ");
       Serial.println(uid);
-      drawRFIDUidScreen(uid);
     }
-  }
-  else
-  {
+  } else {
     Serial.println("No se detecto RFID");
   }
 }
 
-// =========================
-// CARGA DE JUEGO
-// =========================
-IGame *loadSelectedGame()
-{
-  if (activeGameCard != nullptr)
-  {
+// ---- READ INPUT ----
+InputState input;
+
+void readInput() {
+  input.previousUp = input.currentUp;
+  input.previousDown = input.currentDown;
+  input.previousLeft = input.currentLeft;
+  input.previousRight = input.currentRight;
+  input.previousA = input.currentA;
+  input.previousB = input.currentB;
+
+  input.currentUp = btnUp.isPressed();
+  input.currentDown = btnDown.isPressed();
+  input.currentLeft = btnLeft.isPressed();
+  input.currentRight = btnRight.isPressed();
+  input.currentA = btnA.isPressed();
+  input.currentB = btnB.isPressed();
+}
+
+// ---- CARTRIDGE SWITCH ----
+bool cartInserted = false;
+bool lastCartInserted = false;
+
+void readCartridgeSwitch() {
+  lastCartInserted = cartInserted;
+  cartInserted = (digitalRead(PIN_CART) == HIGH);
+}
+
+void processCartridgeChange() {
+  if (!systemOn)
+    return;
+
+  // inserted to not inserted
+  if (!cartInserted && lastCartInserted) {
+    Serial.println("Card exited");
+
+    if (runningGame) {
+      runningGame->exit();
+      runningGame = nullptr;
+    }
+
+    activeGameCard = nullptr;
+
+    if (currentScreen){
+      setScreen(nullptr);
+    }
+
+    consoleState = STATE_MENU;
+  }
+
+  // not inserted to inserted
+  if (cartInserted && !lastCartInserted) {
+    Serial.println("Card inserted");
+
+    detectInsertedGameCard();
+
+    if (consoleState == STATE_MENU) {
+      if (currentScreen) {
+        setScreen(nullptr);
+      }
+      consoleState = STATE_MENU;
+    }
+  }
+}
+
+
+// ---- LOAD GAME ----
+IGame *loadSelectedGame() {
+  if (activeGameCard != nullptr) {
     return activeGameCard->game;
   }
   return nullptr;
 }
 
-void gameCardRead()
-{
+void gameCardRead() {
   if (!gameInserted)
     return;
 
-  if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial())
-  {
-    // 1. Convertimos el UID leído a String
-    String uidInput = "";
-    for (byte i = 0; i < mfrc522.uid.size; i++)
-    {
-      uidInput += (mfrc522.uid.uidByte[i] < 0x10 ? "0" : "");
-      uidInput += String(mfrc522.uid.uidByte[i], HEX);
-      if (i < mfrc522.uid.size - 1)
-        uidInput += " ";
-    }
-    uidInput.toUpperCase();
+  selectRFID();
+  if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
+    String uidInput = readRFIDUid(); 
 
-    // 2. Generamos nuestro puntero con gameFactory
-    for (int i = 0; i < numGames; i++)
-    {
-      // Comprobamos que el cartucho insertado esta registrado
-      if (uidInput == gameList[i].uid)
-      {
+    // Generate pointer with gameFactory
+    for (int i = 0; i < numGames; i++) {
+      if (uidInput == gameList[i].uid) {
         activeGameCard = &gameList[i];
         currentScreen->enter();
-        Serial.print("Cargando: ");
+        Serial.print("Loading: ");
         Serial.println(activeGameCard->name);
         break;
       }
     }
 
     if (activeGameCard == nullptr)
-      Serial.println("Tarjeta no reconocida: " + uidInput);
+      Serial.println("Card not recognized: " + uidInput);
 
     mfrc522.PICC_HaltA();
     mfrc522.PCD_StopCrypto1();
   }
+  deselectRFID();
 }
 
-void setup()
-{
+// ---- SETUP & LOOP ----
+void setup(){
   Serial.begin(115200);
   Serial.flush();
   delay(2000);
 
   pixel.begin();
   pixel.setBrightness(5);
-  pixel.setPixelColor(0, pixel.Color(255, 150, 0)); // Amarillo (Iniciando)
+  pixel.setPixelColor(0, pixel.Color(255, 150, 0)); // Yellow (init)
   pixel.show();
 
-  // Configurar Bus SPI de Hardware
-  // Orden: SCLK, MISO, MOSI, SS (el SS global no importa mucho aquí)
+  // Configure SPI bus of the hardware
+  // Order: SCLK, MISO, MOSI, SS (el SS global do not matter here)
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
 
-  digitalWrite(TFT_CS, HIGH); // Forzamos a la pantalla a ignorar el bus
+  digitalWrite(TFT_CS, HIGH); // force screen to ignore the bus 
   mfrc522.PCD_Init();
 
-  // Inicializar Pantalla
-  tft.initR(INITR_BLACKTAB); // O INITR_REDTAB según tu modelo
+  // Init screen
+  tft.initR(INITR_BLACKTAB); // or INITR_REDTAB (depends on the model)
   tft.setRotation(3);
   drawOffScreen();
 
   sound.begin();
-  // sound.playBootUp();
 
-  // Inicializar RFID
+  // Init RFID
   mfrc522.PCD_Init();
 
-  // Inicializar Interruptor
+  // Init switch
   pinMode(PIN_CART, INPUT_PULLUP);
   cartInserted = (digitalRead(PIN_CART) == LOW);
   lastCartInserted = cartInserted;
 
-  // Inicializar botones
+  // Init buttons
   btnUp.begin();
   btnDown.begin();
   btnLeft.begin();
@@ -573,12 +433,12 @@ void setup()
   btnPower.begin();
   attachInterrupt(digitalPinToInterrupt(POWER_BUTTON), onPowerButton, FALLING);
 
-  // Inicializamos Screen
+  // Init screen
   currentScreen = new MenuScreen(btnUp, btnDown, btnA, &activeGameCard, sound);
 
-  pixel.setPixelColor(0, pixel.Color(0, 0, 255)); // Azul (Listo)
+  pixel.setPixelColor(0, pixel.Color(0, 0, 255)); // Blue (ready)
   pixel.show();
-  Serial.println("Bus compartido configurado.");
+  Serial.println("Shared bus configurated.");
   delay(2000);
 }
 
@@ -591,165 +451,126 @@ void loop() {
   if (!systemOn)
     return;
 
-  switch (consoleState)
-  {
-  case STATE_OFF:
-    break;
+  switch (consoleState){
+    case STATE_OFF:
+      break;
 
-  case STATE_MENU:
-  {
-    if (currentScreen == nullptr)
-    {
-      setScreen(new MenuScreen(btnUp, btnDown, btnA, &activeGameCard, sound));
+    case STATE_MENU: {
+      if (currentScreen == nullptr) {
+        setScreen(new MenuScreen(btnUp, btnDown, btnA, &activeGameCard, sound));
+      }
+      {
+        ConsoleState nextState = currentScreen->update();
+
+        if (currentScreen->getNeedsRedraw()){
+          selectScreen();
+          currentScreen->draw(tft);
+          deselectScreen();
+        }
+
+        if (nextState != STATE_MENU){
+          setScreen(nullptr);
+
+          if (nextState == STATE_CALENDAR){
+            consoleState = STATE_CALENDAR;
+          } else if (nextState == STATE_SETTINGS){
+            consoleState = STATE_SETTINGS;
+          } else if (nextState == STATE_LOADING_GAME){
+            if (cartInserted && activeGameCard != nullptr){
+              consoleState = STATE_LOADING_GAME;
+              drawLoadingScreen();
+            } else {
+              consoleState = STATE_MENU;
+            }
+          }
+        }
+      }
+      break;
     }
-    {
+
+    case STATE_CALENDAR: {
+      if (currentScreen == nullptr) {
+        setScreen(new CalendarScreen(btnB));
+      }
+
       ConsoleState nextState = currentScreen->update();
 
-      if (currentScreen->getNeedsRedraw())
-      {
+      if (currentScreen->getNeedsRedraw()) {
         selectScreen();
         currentScreen->draw(tft);
         deselectScreen();
       }
 
-      if (nextState != STATE_MENU)
-      {
+      if (nextState != STATE_CALENDAR){
         setScreen(nullptr);
 
-        if (nextState == STATE_CALENDAR)
-        {
-          consoleState = STATE_CALENDAR;
+        if (nextState == STATE_MENU) {
+          consoleState = STATE_MENU;
         }
-        else if (nextState == STATE_SETTINGS)
-        {
-          consoleState = STATE_SETTINGS;
+      }
+
+      break;
+    }
+
+    case STATE_SETTINGS: {
+      if (currentScreen == nullptr) {
+        setScreen(new SettingsScreen(btnUp, btnDown, btnLeft, btnRight, btnA, btnB, sound));
+      }
+
+      {
+        ConsoleState nextState = currentScreen->update();
+
+        if (currentScreen->getNeedsRedraw()){
+          selectScreen();
+          currentScreen->draw(tft);
+          deselectScreen();
         }
-        else if (nextState == STATE_LOADING_GAME)
-        {
-          if (cartInserted && activeGameCard != nullptr)
-          {
-            consoleState = STATE_LOADING_GAME;
-            drawLoadingScreen();
-          }
-          else
-          {
+
+        if (nextState != STATE_SETTINGS){
+          setScreen(nullptr);
+
+          if (nextState == STATE_MENU) {
             consoleState = STATE_MENU;
           }
         }
       }
-    }
-    break;
-  }
-
-  case STATE_CALENDAR:
-  {
-    if (currentScreen == nullptr)
-    {
-      setScreen(new CalendarScreen(btnB));
+      break;
     }
 
-    ConsoleState nextState = currentScreen->update();
-
-    if (currentScreen->getNeedsRedraw())
-    {
-      selectScreen();
-      currentScreen->draw(tft);
-      deselectScreen();
-    }
-
-    if (nextState != STATE_CALENDAR)
-    {
-      setScreen(nullptr);
-
-      if (nextState == STATE_MENU)
-      {
+    case STATE_LOADING_GAME: {
+      runningGame = loadSelectedGame();
+      if (runningGame) {
+        runningGame->init();
+        consoleState = STATE_GAME_RUNNING;
+      } else {
+        if (currentScreen) {
+          setScreen(nullptr);
+        }
         consoleState = STATE_MENU;
       }
+      break;
     }
 
-    break;
-  }
+    case STATE_GAME_RUNNING: {
+      if (!cartInserted) {
+        if (runningGame) {
+          activeGameCard = nullptr;
+          runningGame->exit();
+          runningGame = nullptr;
+        }
 
-  case STATE_SETTINGS:
-  {
-    if (currentScreen == nullptr)
-    {
-      setScreen(new SettingsScreen(btnUp, btnDown, btnLeft, btnRight, btnA, btnB, sound));
-    }
+        if (currentScreen) {
+          setScreen(nullptr);
+        }
 
-    {
-      ConsoleState nextState = currentScreen->update();
-
-      if (currentScreen->getNeedsRedraw())
-      {
+        consoleState = STATE_MENU;
+      } else if (runningGame) {
+        runningGame->update(input);
         selectScreen();
-        currentScreen->draw(tft);
+        runningGame->render(tft, sound);
         deselectScreen();
       }
-
-      if (nextState != STATE_SETTINGS)
-      {
-        setScreen(nullptr);
-
-        if (nextState == STATE_MENU)
-        {
-          consoleState = STATE_MENU;
-        }
-      }
+      break;
     }
-    break;
-  }
-
-  case STATE_WAITING_CART:
-  {
-    break;
-  }
-
-  case STATE_LOADING_GAME:
-  {
-    runningGame = loadSelectedGame();
-    if (runningGame)
-    {
-      runningGame->init();
-      consoleState = STATE_GAME_RUNNING;
-    }
-    else
-    {
-      if (currentScreen)
-      {
-        setScreen(nullptr);
-      }
-      consoleState = STATE_MENU;
-    }
-    break;
-  }
-
-  case STATE_GAME_RUNNING:
-  {
-    if (!cartInserted)
-    {
-      if (runningGame)
-      {
-        activeGameCard = nullptr;
-        runningGame->exit();
-        runningGame = nullptr;
-      }
-
-      if (currentScreen)
-      {
-        setScreen(nullptr);
-      }
-
-      consoleState = STATE_MENU;
-    }
-    else if (runningGame)
-    {
-      runningGame->update(input);
-      selectScreen();
-      runningGame->render(tft, sound);
-      deselectScreen();
-    }
-    break;
-  }
   }
 }

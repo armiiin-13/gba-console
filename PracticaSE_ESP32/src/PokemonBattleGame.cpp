@@ -1,33 +1,46 @@
 #include "PokemonBattleGame.h"
 
+// ---- COLOR DEFINITIONS ----
+#define C_TRANSPARENT 0x0000
+#define C_LIGHT_YELLOW 0xFFF2
+#define C_DARK_GREY 0x2104
+#define C_GREY 0x4A69
+#define C_BROWN 0x69C2
+#define C_LIGHT_BROWN 0xAC2C
+#define C_DARK_BROWN 0x4101
+
+// ---- FUNCTION DECLARATION ----
+void drawTorchicSprite(Adafruit_ST7735& tft, int x, int y, int s);
+void drawZigzagoonSprite(Adafruit_ST7735& tft, int x, int y, int s);
+
 void PokemonBattleGame::init() {
   player = {
-    "PIKACHU",
+    "TORCHIC",
     100,
     100,
     {
-      {"RAYO", 24},
-      {"PLACAJE", 16},
-      {"CHISPA", 20},
-      {"AT. RAPIDO", 18}
+      {"EMBER", 20},
+      {"SCRATCH", 16},
+      {"GROWL", 0},
+      {"PECK", 10}
     }
   };
 
   enemy = {
-    "CHARMANDER",
+    "ZIGZAGOON",
     100,
     100,
     {
-      {"ARANAZO", 14},
-      {"ASCUAS", 22},
-      {"GRUÑIDO", 8},
-      {"MORDISCO", 18}
+      {"TAIL WHIP", 0},
+      {"TACKLE", 17},
+      {"GROWL", 0},
+      {"HEADBUTT", 24}
     }
   };
 
   state = PLAYER_CHOOSE;
   selectedAttack = 0;
-  message = "Elige ataque";
+  message = "Choose attack";
   messageStart = 0;
   needsRedraw = true;
 }
@@ -48,7 +61,7 @@ void PokemonBattleGame::update(const InputState& in) {
     if (in.pressedA() || millis() - messageStart > 900) {
       if (enemy.hp <= 0) {
         state = VICTORY;
-        message = "Ganaste!";
+        message = "You won!";
       } else {
         state = ENEMY_TURN;
         enemyAttack();
@@ -61,10 +74,10 @@ void PokemonBattleGame::update(const InputState& in) {
     if (in.pressedA() || millis() - messageStart > 900) {
       if (player.hp <= 0) {
         state = DEFEAT;
-        message = "Perdiste...";
+        message = "You lose...";
       } else {
         state = PLAYER_CHOOSE;
-        message = "Elige ataque";
+        message = "Choose attack";
       }
       needsRedraw = true;
     }
@@ -115,7 +128,7 @@ void PokemonBattleGame::playerAttack(int index) {
   if (enemy.hp < 0) enemy.hp = 0;
 
   static char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%s usa %s", player.name, atk.name);
+  snprintf(buffer, sizeof(buffer), "%s used %s", player.name, atk.name);
   message = buffer;
   messageStart = millis();
   state = MESSAGE;
@@ -130,7 +143,7 @@ void PokemonBattleGame::enemyAttack() {
   if (player.hp < 0) player.hp = 0;
 
   static char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%s usa %s", enemy.name, atk.name);
+  snprintf(buffer, sizeof(buffer), "%s used %s", enemy.name, atk.name);
   message = buffer;
   messageStart = millis();
   needsRedraw = true;
@@ -142,46 +155,35 @@ void PokemonBattleGame::drawBattle(Adafruit_ST7735& tft) {
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_WHITE);
 
-  // -------- ENEMIGO --------
-  // Nombre y barra a la izquierda
+  // -------- ENEMY --------
+  // health bar + name
   tft.setCursor(5, 4);
   tft.print(enemy.name);
   drawHpBar(tft, 5, 16, enemy.hp, enemy.maxHp);
 
-  // Charmander arriba a la derecha
-  int cx = 130;
-  int cy = 28;
-  tft.fillCircle(cx, cy, 12, ST77XX_ORANGE);
-  tft.fillCircle(cx + 4, cy - 5, 3, ST77XX_BLACK);
-  tft.fillTriangle(cx - 10, cy + 8, cx - 18, cy + 18, cx - 4, cy + 13, ST77XX_ORANGE);
-  tft.fillCircle(cx - 19, cy + 17, 4, ST77XX_RED);
-  tft.fillCircle(cx - 19, cy + 17, 2, ST77XX_YELLOW);
+  // drawing
+  int cx = 87;
+  int cy = 9;
+  drawZigzagoonSprite(tft, cx, cy, 3);
 
-  // -------- JUGADOR --------
-  // Pikachu más a la izquierda
-  int px = 40;
-  int py = 62;
-  tft.fillCircle(px, py, 13, ST77XX_YELLOW);
-  tft.fillCircle(px - 5, py - 5, 2, ST77XX_BLACK);
-  tft.fillCircle(px + 6, py + 2, 3, ST77XX_RED);
-  tft.fillTriangle(px - 8, py - 11, px - 15, py - 24, px - 3, py - 14, ST77XX_YELLOW);
-  tft.fillTriangle(px + 8, py - 11, px + 15, py - 24, px + 3, py - 14, ST77XX_YELLOW);
-  tft.fillRect(px - 20, py + 2, 10, 5, ST77XX_YELLOW);
-  tft.fillRect(px - 26, py - 2, 8, 5, ST77XX_YELLOW);
-
-  // Nombre y barra de Pikachu más a la derecha
+  // -------- PLAYER --------
+  // health bar + name
   tft.setCursor(80, 60);
   tft.print(player.name);
   drawHpBar(tft, 80, 70, player.hp, player.maxHp);
 
-  // -------- CAJA DE ATAQUES --------
-  // Más ancha y menos alta
-  tft.drawRect(7, 85, 140, 35, ST77XX_WHITE);
+  // drawing
+  int px = 28;
+  int py = 29;
+  drawTorchicSprite(tft, px, py, 3);
+
+  // -------- ATTACK BOX --------
+  tft.drawRect(7, 85, 150, 35, ST77XX_WHITE);
 
   if (state == PLAYER_CHOOSE) {
     for (int i = 0; i < 4; i++) {
-      int x = (i % 2 == 0) ? 12 : 72;   // antes 1 / 61 -> +5 px derecha
-      int y = (i < 2) ? 93 : 107;      // antes 95 / 109 -> -2 px arriba
+      int x = (i % 2 == 0) ? 12 : 72;   
+      int y = (i < 2) ? 93 : 107;
 
       if (i == selectedAttack) {
         tft.setTextColor(ST77XX_YELLOW);
@@ -199,12 +201,12 @@ void PokemonBattleGame::drawBattle(Adafruit_ST7735& tft) {
   } else {
     tft.setTextColor(ST77XX_WHITE);
 
-    tft.setCursor(11, 92);   // antes 6,102 -> +5 derecha y más arriba
+    tft.setCursor(11, 92);
     tft.print(message);
 
     if (state == VICTORY || state == DEFEAT) {
       tft.setCursor(11, 106);
-      tft.print("A: reiniciar");
+      tft.print("A: restart");
     }
   }
 }
@@ -222,4 +224,90 @@ void PokemonBattleGame::drawHpBar(Adafruit_ST7735& tft, int x, int y, int hp, in
   if (hp < maxHp / 4) color = ST77XX_RED;
 
   tft.fillRect(x + 1, y + 1, fillWidth, height - 2, color);
+}
+
+// ---- DRAWING FUNCTIONS ----
+void drawTorchicSprite(Adafruit_ST7735& tft, int x, int y, int s) {
+  static const char* sprite[] = {
+    "..NNN........",
+    "..NYYN.N.....",
+    ".NNOYYNYN....",
+    ".NYYOYYYN....",
+    ".NOYYYYYN....",
+    "..NNOYRYONN..",
+    ".NRROROROOON.",
+    ".NOOOOOOOOOON",
+    "NROOOOOOOO.WN",
+    "NROOOOOOORRNN",
+    "NRRONWOORLLRN",
+    ".NRRNNRRLLON.",
+    "NYNRRRRRRRN..",
+    "NOYYORYRLYN..",
+    "NROYYRRRRN...",
+    ".NRRRRRRN....",
+    ".NRRRNLN.....",
+    "..NLN.NN.....",
+    "...NN........"
+  };
+
+  for (int j = 0; j < 19; j++) {
+    for (int i = 0; sprite[j][i] != '\0'; i++) {
+
+      uint16_t c = C_TRANSPARENT;
+
+      switch (sprite[j][i]) {
+        case 'Y': c = ST77XX_YELLOW; break;
+        case 'O': c = ST77XX_ORANGE; break;
+        case 'R': c = ST77XX_RED; break;
+        case 'L': c = C_LIGHT_YELLOW; break;
+        case 'N': c = C_DARK_GREY; break;
+        case 'W': c = ST77XX_WHITE; break;
+      }
+
+      if (c != C_TRANSPARENT) {
+        tft.fillRect(x + i * s, y + j * s, s, s, c);
+      }
+    }
+  }
+}
+
+void drawZigzagoonSprite(Adafruit_ST7735& tft, int x, int y, int s) {
+  static const char* const sprite[] = {
+    ".................NN...",
+    "........NN..NN..NLN...",
+    "...N.N.NLDNNLN.NLLNNN.",
+    "..NBNBNLLLDBLLNGBLLLN.",
+    "..NBDGGLDGGBBBLLGBBLNN",
+    "..NDBBDGGBGGBBLLGGDLLN",
+    ".NBBBBBGBBBGBDDLLGDNN.",
+    ".NGGBBBBBBGLLDDLGDN...",
+    ".NGGGGBBBGLLDDLGDN....",
+    "NBBGGWGBBBGLDDDLN.....",
+    "NGBGGRGBBGLLLGGBN.....",
+    "NBBBGGBBBBGLBNLBN.....",
+    ".NNDBBBDGGDNN.NN......",
+    "...NNNNGLLN...........",
+    "......NLLN............",
+    ".......NN............."
+  };
+
+  for (int j = 0; j < 16; j++) {
+    for (int i = 0; sprite[j][i] != '\0'; i++) {
+      uint16_t c = C_TRANSPARENT;
+
+      switch (sprite[j][i]) {
+        case 'B': c = C_BROWN; break;
+        case 'N': c = C_DARK_GREY; break;
+        case 'D': c = C_DARK_BROWN; break;
+        case 'L': c = C_LIGHT_BROWN; break;
+        case 'G': c = C_GREY; break;
+        case 'W': c = ST77XX_WHITE; break;
+        case 'R': c = ST7735_RED; break;
+      }
+
+      if (c != C_TRANSPARENT) {
+        tft.fillRect(x + i * s, y + j * s, s, s, c);
+      }
+    }
+  }
 }

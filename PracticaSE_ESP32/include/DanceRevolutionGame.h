@@ -15,6 +15,10 @@ public:
   void exit() override;
 
 private:
+  unsigned long lastNoteFrameTime;
+  unsigned long toneUntil;
+  int pendingTone;
+
   enum NoteType {
     NOTE_UP,
     NOTE_DOWN,
@@ -26,6 +30,7 @@ private:
 
   struct DanceNote {
     NoteType type;
+    int pitch;
     unsigned long time;
     bool hit;
     bool missed;
@@ -60,7 +65,6 @@ private:
   void generateChart();
   void checkInput(NoteType input);
   void updateMisses(unsigned long songTime);
-  void updateMusic(SoundManager& sound, unsigned long songTime);
 
   void drawStaticScreen(Adafruit_ST7735& tft);
   void drawHUD(Adafruit_ST7735& tft);

@@ -553,7 +553,7 @@ void setup()
   drawOffScreen();
 
   sound.begin();
-  sound.playBootUp();
+  // sound.playBootUp();
 
   // Inicializar RFID
   mfrc522.PCD_Init();

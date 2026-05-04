@@ -2,14 +2,26 @@
 
 static const int HIT_LINE_Y = 122;
 static const int NOTE_START_Y = 28;
-static const int TRAVEL_TIME = 2600;
+static const int TRAVEL_TIME = 3600;  
 static const int HIT_WINDOW = 260;
+static const int NOTE_FRAME_MS = 33;
+static const int HIT_TONE_MS = 120;
 
 static const int melody[] = {
-  659, 784, 880, 784,
-  659, 587, 659, 784,
-  988, 880, 784, 659,
-  587, 659, 784, 659
+  392, 440, 466, 440,
+  392, 440, 523, 440,
+  349, 392, 440, 392,
+  349, 392, 466, 392,
+  392, 440, 466, 523,
+  587, 523, 466, 440,
+  392, 440, 466, 523,
+  659, 587, 523, 466,
+  440, 392, 349, 330,
+  294, 330, 349, 392,
+  392, 440, 466, 440,
+  392, 440, 523, 440,
+  392, 349, 330, 294,
+  262, 294, 330, 262
 };
 
 static const int melodyLength = sizeof(melody) / sizeof(melody[0]);
@@ -18,6 +30,9 @@ void DanceRevolutionGame::init() {
   score = 0;
   combo = 0;
   songIndex = 0;
+  lastNoteFrameTime = 0;
+  pendingTone = 0;
+  toneUntil = 0;
 
   playing = true;
 
@@ -71,13 +86,19 @@ void DanceRevolutionGame::update(const InputState& in) {
 }
 
 void DanceRevolutionGame::render(Adafruit_ST7735& tft, SoundManager& sound) {
-  unsigned long songTime = millis() - startTime;
+  unsigned long now = millis();
+  unsigned long songTime = now - startTime;
 
-  if (playing) {
-    updateMusic(sound, songTime);
-  } else {
-    sound.stopTone();
-  }
+  if (pendingTone > 0) {
+  sound.playToneAsync(pendingTone);
+  toneUntil = now + HIT_TONE_MS;
+  pendingTone = 0;
+}
+
+if (toneUntil > 0 && now >= toneUntil) {
+  sound.stopTone();
+  toneUntil = 0;
+}
 
   if (fullRedraw) {
     drawStaticScreen(tft);
@@ -94,9 +115,9 @@ void DanceRevolutionGame::render(Adafruit_ST7735& tft, SoundManager& sound) {
     hudDirty = false;
   }
 
-  if (notesDirty && playing) {
+  if (playing && now - lastNoteFrameTime >= NOTE_FRAME_MS) {
     drawMovingNotes(tft, songTime);
-    notesDirty = false;
+    lastNoteFrameTime = now;
   }
 
   if (feedbackDirty || lastFeedback != lastFeedbackDrawn) {
@@ -106,6 +127,8 @@ void DanceRevolutionGame::render(Adafruit_ST7735& tft, SoundManager& sound) {
   }
 
   if (endDirty) {
+    sound.stopTone();
+    toneUntil = 0;
     drawEndScreen(tft);
     endDirty = false;
   }
@@ -115,7 +138,7 @@ void DanceRevolutionGame::exit() {
 }
 
 void DanceRevolutionGame::generateChart() {
-  noteCount = 32;
+  noteCount = melodyLength;
 
   NoteType pattern[] = {
     NOTE_LEFT, NOTE_UP, NOTE_RIGHT, NOTE_DOWN,
@@ -126,7 +149,8 @@ void DanceRevolutionGame::generateChart() {
 
   for (int i = 0; i < noteCount; i++) {
     notes[i].type = pattern[i % 16];
-    notes[i].time = 1800 + i * 850;
+    notes[i].pitch = melody[i % melodyLength];
+    notes[i].time = 1800 + i * 550;
     notes[i].hit = false;
     notes[i].missed = false;
   }
@@ -153,6 +177,8 @@ void DanceRevolutionGame::checkInput(NoteType input) {
   if (bestIndex != -1 && bestDiff <= HIT_WINDOW) {
     notes[bestIndex].hit = true;
     combo++;
+
+    pendingTone = notes[bestIndex].pitch;
 
     if (bestDiff < 70) {
       score += 300;
@@ -188,23 +214,6 @@ void DanceRevolutionGame::updateMisses(unsigned long songTime) {
       feedbackDirty = true;
       notesDirty = true;
     }
-  }
-}
-
-void DanceRevolutionGame::updateMusic(SoundManager& sound, unsigned long songTime) {
-  const unsigned long beatDuration = 420;
-
-  if (songTime - lastMusicNoteTime > beatDuration) {
-    int note = melody[songIndex % melodyLength];
-
-    sound.playToneAsync(note);
-
-    songIndex++;
-    lastMusicNoteTime = songTime;
-  }
-
-  if (songTime - lastMusicNoteTime > 260) {
-    sound.stopTone();
   }
 }
 

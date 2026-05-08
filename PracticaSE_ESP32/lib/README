@@ -1,46 +1,84 @@
+# 🎮 Retro Boy
 
-This directory is intended for project specific (private) libraries.
-PlatformIO will compile them to static libraries and link into the executable file.
+Retro Boy es una consola portátil basada en sistemas empotrados, inspirada en dispositivos clásicos como Game Boy Advance y Game & Watch. El objetivo del proyecto es recrear la esencia de las consolas retro combinando hardware real, cartuchos físicos y una arquitectura modular basada en software embebido.
 
-The source code of each library should be placed in a separate directory
-("lib/your_library_name/[Code]").
+## 📌 Descripción del proyecto
 
-For example, see the structure of the following example libraries `Foo` and `Bar`:
+Retro Boy no es una simple emulación, sino un sistema integrado completo que gestiona directamente hardware y periféricos. La consola permite ejecutar distintos juegos mediante cartuchos físicos identificados mediante RFID, ofreciendo una experiencia tangible y modular.
 
-|--lib
-|  |
-|  |--Bar
-|  |  |--docs
-|  |  |--examples
-|  |  |--src
-|  |     |- Bar.c
-|  |     |- Bar.h
-|  |  |- library.json (optional. for custom build options, etc) https://docs.platformio.org/page/librarymanager/config.html
-|  |
-|  |--Foo
-|  |  |- Foo.c
-|  |  |- Foo.h
-|  |
-|  |- README --> THIS FILE
-|
-|- platformio.ini
-|--src
-   |- main.c
+> El proyecto combina diseño electrónico, programación en C++ y construcción física de un prototipo funcional.
 
-Example contents of `src/main.c` using Foo and Bar:
-```
-#include <Foo.h>
-#include <Bar.h>
+---
 
-int main (void)
-{
-  ...
-}
+## 🎯 Objetivos
 
-```
+- Diseñar una consola portátil funcional
+- Implementar una arquitectura basada en máquina de estados (FSM)
+- Gestionar interacción directa con hardware (botones, pantalla, sonido)
+- Implementar un sistema de cartuchos físicos
+- Optimizar el uso de recursos en un sistema embebido
 
-The PlatformIO Library Dependency Finder will find automatically dependent
-libraries by scanning project source files.
+---
 
-More information about PlatformIO Library Dependency Finder
-- https://docs.platformio.org/page/librarymanager/ldf.html
+## 🧠 Arquitectura del sistema
+
+La consola está diseñada como una **máquina de estados finita (FSM)** que controla el flujo de ejecución:
+
+Estados principales:
+- `STATE_OFF`
+- `STATE_MENU`
+- `STATE_CALENDAR`
+- `STATE_SETTINGS`
+- `STATE_WAITING_CART`
+- `STATE_LOADING_GAME`
+- `STATE_GAME_RUNNING`
+
+El sistema utiliza:
+- Programación orientada a objetos
+- Gestión dinámica de memoria (`new` / `delete`)
+- Separación entre lógica y hardware mediante una capa HAL
+
+---
+
+## ⚙️ Hardware
+
+### 🧩 Componentes principales
+
+- Microcontrolador: **ESP32-S3**
+- Pantalla: TFT ST7735S (128x160)
+- Lector RFID: MFRC-522
+- Sistema de audio: buzzer pasivo
+- Alimentación: 3 pilas AA
+- Interfaz: 7 botones físicos
+
+### 🔌 Características técnicas
+
+- Arquitectura dual-core a 240 MHz
+- Comunicación mediante bus SPI compartido
+- Gestión manual de Chip Select para evitar conflictos entre periféricos
+
+---
+
+## 🖥️ Software
+
+### 🧱 Estructura
+
+El software está organizado en módulos:
+
+- Interfaz base (menús y navegación)
+- Sistema de juegos basado en la interfaz `IGame`
+- Gestión del hardware mediante HAL
+- Control de eventos mediante interrupciones
+
+### 🎮 Interfaz IGame
+
+Cada juego implementa:
+
+```cpp
+class IGame {
+public:
+    virtual void init() = 0;
+    virtual void update(const InputState& in) = 0;
+    virtual void render(Adafruit_ST7735& tft, SoundManager& sound) = 0;
+    virtual void exit() = 0;
+};
